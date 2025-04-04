@@ -130,7 +130,7 @@ let debugGlobalScale = 1.0;
 
 let debugLocalOffsets = {
     face: new THREE.Vector3(0, 0, 0),
-    body: new THREE.Vector3(0, -1.0, 0), 
+    body: new THREE.Vector3(0, -1.0, -1.0), 
     leftHand: new THREE.Vector3(0, 0, 0),
     rightHand: new THREE.Vector3(0, 0, 0),
 };
