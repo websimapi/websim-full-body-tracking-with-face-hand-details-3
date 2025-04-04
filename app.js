@@ -5,6 +5,8 @@ import { initHandTracking, updateHandMesh, hideHandMesh, HAND_CONNECTIONS } from
 import { createBone, updateBone, createTerrain } from './utils.js';
 import * as THREE from 'three'; // Import Three.js as a module
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'; // Import OrbitControls
+// Import calibration functions
+import { startCalibrationSequence, performCalibration } from './calibration.js';
 
 // Global references to MediaPipe objects now loaded via script tags
 const Holistic = window.Holistic;
@@ -35,11 +37,8 @@ let holistic;
 let camera;
 let isInitialized = false;
 let isCalibrated = false;
-let isCalibrating = false;
-let captureForCalibration = false;
-let calibrationData = null;
-let countdownTimer = null;
-let countdownValue = 5;
+let captureForCalibration = false; // Flag to signal frame capture for calibration
+let calibrationData = null; // Stores the result of successful calibration
 const BASE_SCALE_FACTOR = 2.5; // Base scaling for the 3D model
 
 // Three.js objects
@@ -50,12 +49,38 @@ let leftHandMesh = {};
 let rightHandMesh = {};
 let terrainMesh;
 
-// Helper function to calculate 2D distance between landmarks
-function calculateDistance2D(p1, p2) {
-    if (!p1 || !p2) return 0;
-    const dx = p1.x - p2.x;
-    const dy = p1.y - p2.y;
-    return Math.sqrt(dx * dx + dy * dy);
+// Callback function for calibration module to set the capture flag
+function setCaptureFlag(value) {
+    captureForCalibration = value;
+}
+
+// Callback function to handle the result from the calibration module
+function handleCalibrationResult(resultData) {
+    // Re-enable buttons regardless of success/failure
+    calibrateButton.disabled = false;
+    recalibrateButton.disabled = false;
+
+    if (resultData) { // Calibration succeeded
+        calibrationData = resultData;
+        isCalibrated = true;
+        statusElement.textContent = "Tracking active";
+        calibrationStatusElement.textContent = "Calibration Successful!";
+        // Hide overlay, show main content
+        calibrationOverlay.classList.add('hidden');
+        mainContentElement.classList.remove('hidden');
+        // Optional: Brief success message then clear
+        setTimeout(() => { calibrationStatusElement.textContent = ""; }, 2000);
+        console.log("Calibration successful. Data:", calibrationData);
+
+    } else { // Calibration failed
+        isCalibrated = false;
+        calibrationData = null; // Ensure data is null on failure
+        // Keep overlay visible, main content hidden
+        calibrationOverlay.classList.remove('hidden');
+        mainContentElement.classList.add('hidden');
+        // calibrationStatusElement is updated within performCalibration via the DOM elements passed
+        console.warn("Calibration failed.");
+    }
 }
 
 // Initialize the application logic (called after DOM loaded)
@@ -100,9 +125,21 @@ async function initializeApp() {
         // Initialize Three.js scene
         initThreeJS();
 
-        // Setup calibration button listener
-        calibrateButton.addEventListener('click', startCalibration);
-        recalibrateButton.addEventListener('click', startCalibration); // Allow recalibration
+        // Setup calibration button listeners using the imported function
+        const calibrationDOMElements = {
+            overlay: calibrationOverlay,
+            mainContent: mainContentElement,
+            startButton: calibrateButton,
+            recalibrateButton: recalibrateButton,
+            countdown: countdownElement,
+            status: calibrationStatusElement
+        };
+        calibrateButton.addEventListener('click', () => {
+             startCalibrationSequence(calibrationDOMElements, camera, video, setCaptureFlag, handleCalibrationResult);
+        });
+        recalibrateButton.addEventListener('click', () => {
+             startCalibrationSequence(calibrationDOMElements, camera, video, setCaptureFlag, handleCalibrationResult);
+        });
 
         // Initial UI state: show calibration overlay, hide main content
         calibrationOverlay.classList.remove('hidden');
@@ -118,99 +155,6 @@ async function initializeApp() {
         // Hide calibration button if init fails fundamentally
         calibrateButton.style.display = 'none';
     }
-}
-
-// Start the calibration process
-async function startCalibration() {
-    if (isCalibrating) return; // Prevent multiple clicks
-
-    isCalibrating = true;
-    isCalibrated = false; // Reset calibration status
-    calibrationData = null;
-    calibrateButton.disabled = true; // Disable button during calibration
-    recalibrateButton.disabled = true;
-    calibrationStatusElement.textContent = "Starting camera...";
-    countdownElement.style.display = 'none'; // Hide countdown initially
-
-    // Ensure overlay is visible, main content hidden
-    calibrationOverlay.classList.remove('hidden');
-    mainContentElement.classList.add('hidden');
-
-    try {
-        // Start the camera if not already running (or restart if needed)
-        if (!camera.video) { // Check if camera was ever started
-            await camera.start();
-        } else if (video.paused) { // If paused from previous session
-            video.play();
-        }
-        resizeCanvasToDisplaySize(); // Ensure canvas is sized correctly
-        calibrationStatusElement.textContent = "Get in position...";
-
-        // Start countdown
-        countdownValue = 5;
-        countdownElement.textContent = countdownValue;
-        countdownElement.style.display = 'block'; // Show countdown
-
-        countdownTimer = setInterval(() => {
-            countdownValue--;
-            countdownElement.textContent = countdownValue;
-            if (countdownValue <= 0) {
-                clearInterval(countdownTimer);
-                countdownTimer = null;
-                calibrationStatusElement.textContent = "Capturing pose...";
-                captureForCalibration = true; // Signal onResults to capture the next frame
-                // Keep the overlay visible until calibration is confirmed in onResults
-            }
-        }, 1000);
-
-    } catch (error) {
-        console.error("Error starting camera for calibration:", error);
-        calibrationStatusElement.textContent = "Error starting camera. Please check permissions.";
-        isCalibrating = false;
-        calibrateButton.disabled = false;
-        recalibrateButton.disabled = false;
-        countdownElement.style.display = 'none';
-    }
-}
-
-// Perform calibration using captured results
-function calibrate(results) {
-    if (!results || !results.poseLandmarks || results.poseLandmarks.length < 13) {
-        calibrationStatusElement.textContent = "Calibration failed: Could not detect full body pose. Please try again.";
-        console.warn("Calibration failed: Insufficient pose landmarks.", results?.poseLandmarks?.length);
-        // Allow user to try again
-        isCalibrating = false;
-        captureForCalibration = false;
-        calibrateButton.disabled = false;
-        recalibrateButton.disabled = false;
-        countdownElement.style.display = 'none'; // Hide countdown
-        return false; // Indicate failure
-    }
-
-    const shoulderLeft = results.poseLandmarks[11];
-    const shoulderRight = results.poseLandmarks[12];
-
-    // Use 2D distance on the capture frame as the reference
-    const refWidth = calculateDistance2D(shoulderLeft, shoulderRight);
-
-    if (refWidth < 0.01) { // Check for very small or zero width
-        calibrationStatusElement.textContent = "Calibration failed: Shoulders too close or not detected properly. Please reposition and try again.";
-        console.warn("Calibration failed: Invalid shoulder width.", refWidth);
-        // Allow user to try again
-        isCalibrating = false;
-        captureForCalibration = false;
-        calibrateButton.disabled = false;
-        recalibrateButton.disabled = false;
-        countdownElement.style.display = 'none'; // Hide countdown
-        return false; // Indicate failure
-    }
-
-    calibrationData = {
-        referenceShoulderWidth: refWidth
-    };
-    console.log("Calibration successful. Reference shoulder width:", refWidth);
-    calibrationStatusElement.textContent = "Calibration Successful!";
-    return true; // Indicate success
 }
 
 // Initialize Three.js scene (called once during initializeApp)
@@ -335,6 +279,15 @@ function resizeCanvasToDisplaySize() {
     }
 }
 
+// Helper function to calculate 2D distance (used for dynamic scale)
+function calculateDistance2D(p1, p2) {
+    if (!p1 || !p2) return 0;
+    // Use normalized coordinates (0-1 range)
+    const dx = p1.x - p2.x;
+    const dy = p1.y - p2.y;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
 // Update the 3D scene with new pose data
 function updateThreeJSPose(results, dynamicScale) {
     // Ensure dynamicScale is a valid number, default to 1.0 if not
@@ -393,32 +346,16 @@ function onResults(results) {
         resizeCanvasToDisplaySize(); // Adjust canvas size if video size changed
     }
 
-    // Handle calibration capture
-    if (isCalibrating && captureForCalibration) {
-        captureForCalibration = false; // Only capture once
-        if (calibrate(results)) { // Perform calibration
-            // Calibration successful
-            isCalibrated = true;
-            isCalibrating = false;
-            statusElement.textContent = "Tracking active";
-            // Hide overlay, show main content
-            calibrationOverlay.classList.add('hidden');
-            mainContentElement.classList.remove('hidden');
-            calibrateButton.disabled = false; // Re-enable buttons
-            recalibrateButton.disabled = false;
-            // Optional: Brief success message then clear
-            setTimeout(() => { calibrationStatusElement.textContent = ""; }, 2000);
-
-        } else {
-            // Calibration failed - UI handled within calibrate()
-            // Keep overlay visible, main content hidden
-            isCalibrating = false; // Reset calibrating flag
-            calibrateButton.disabled = false;
-            recalibrateButton.disabled = false;
-            // Don't proceed with drawing or updating 3D pose
-            return;
-        }
+    // --- Handle calibration capture ---
+    if (captureForCalibration) {
+        captureForCalibration = false; // Consume the flag
+        const calibrationResult = performCalibration(results, calibrationStatusElement); // Perform calibration checks
+        handleCalibrationResult(calibrationResult); // Handle the outcome (success or failure)
+        // Don't process the rest of the frame if we just attempted calibration
+        return;
     }
+    // --- End calibration handling ---
+
 
     // --- Regular Processing ---
     // Don't process further if not calibrated
@@ -433,11 +370,24 @@ function onResults(results) {
     // Calculate dynamic scale based on current shoulder width vs calibrated width
     let dynamicScale = 1.0;
     if (calibrationData && results.poseLandmarks && results.poseLandmarks.length > 12) {
-        const currentShoulderWidth = calculateDistance2D(results.poseLandmarks[11], results.poseLandmarks[12]);
-        if (calibrationData.referenceShoulderWidth > 0.01 && currentShoulderWidth > 0.01) {
-            // Scale = current / reference. If current is smaller, scale is < 1 (further away)
-            dynamicScale = currentShoulderWidth / calibrationData.referenceShoulderWidth;
-            // Clamp scale to avoid extreme values? e.g., dynamicScale = Math.max(0.3, Math.min(2.0, dynamicScale));
+        // Check visibility/presence of shoulder landmarks before calculating distance
+        const shoulderLeft = results.poseLandmarks[11];
+        const shoulderRight = results.poseLandmarks[12];
+        const visibilityThreshold = 0.5; // Use a threshold
+        if (shoulderLeft && shoulderRight &&
+            (shoulderLeft.visibility ?? 1) > visibilityThreshold &&
+            (shoulderRight.visibility ?? 1) > visibilityThreshold)
+        {
+             const currentShoulderWidth = calculateDistance2D(shoulderLeft, shoulderRight);
+             if (calibrationData.referenceShoulderWidth > 0.01 && currentShoulderWidth > 0.01) {
+                 // Scale = current / reference. If current is smaller, scale is < 1 (further away)
+                 dynamicScale = currentShoulderWidth / calibrationData.referenceShoulderWidth;
+                 // Clamp scale to avoid extreme values? e.g., dynamicScale = Math.max(0.3, Math.min(2.0, dynamicScale));
+             }
+        } else {
+             // If shoulders aren't clearly visible, don't adjust scale based on potentially bad data
+             // Keep dynamicScale at 1.0 or its previous value? For now, default to 1.0.
+             dynamicScale = 1.0;
         }
     }
 
@@ -520,9 +470,6 @@ window.addEventListener('beforeunload', () => {
     }
     if (holistic) {
         holistic.close();
-    }
-    if (countdownTimer) {
-        clearInterval(countdownTimer);
     }
     // Optional: Remove event listeners if needed, though usually handled by browser unload
 });
