@@ -4,52 +4,43 @@
     box-sizing: border-box;
 }
 
-body {
+html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden; /* Prevent scrollbars on body */
     font-family: 'Arial', sans-serif;
-    background-color: #121212;
+    background-color: #121212; /* Background for any small gaps */
     color: #fff;
-    display: flex;
-    justify-content: center;
-    min-height: 100vh;
-    padding: 20px;
-    overflow: hidden;
 }
 
 .container {
-    max-width: 1200px;
     width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    position: relative;
-}
-
-h1 {
-    text-align: center;
-    margin-bottom: 10px;
-    color: #03a9f4;
+    height: 100%;
+    position: relative; /* Needed for absolute positioning of children */
+    display: flex; /* Use flexbox for main layout */
+    flex-direction: column; /* Stack elements vertically */
 }
 
 #scene-container {
     width: 100%;
-    height: 70vh;
+    flex-grow: 1; /* Allow scene to take available vertical space */
     background-color: #1a1a1a;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    overflow: hidden; /* Ensure canvas fits */
+    position: relative; /* For potential overlays if needed */
 }
 
 .webcam-container {
-    position: fixed;
+    position: fixed; /* Keep it fixed */
     bottom: 20px;
-    right: 20px;
-    width: 320px;
-    height: 180px;
+    left: 20px; /* Moved to bottom-left */
+    width: 240px; /* Slightly smaller */
+    height: 135px; /* Maintain 16:9 aspect ratio */
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
     z-index: 10;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background-color: #000; /* Add background */
 }
 
 #webcam {
@@ -57,7 +48,6 @@ h1 {
     height: 100%;
     transform: rotateY(180deg); /* Mirror the webcam feed */
     display: block;
-    background-color: #000;
     object-fit: cover;
 }
 
@@ -70,163 +60,231 @@ h1 {
     transform: rotateY(180deg); /* Mirror the canvas to match the video */
 }
 
-.controls {
+.debug-menu {
+    position: fixed; /* Fixed position */
+    top: 15px;
+    right: 15px;
+    width: 380px; /* Adjusted width */
+    max-height: calc(100vh - 30px); /* Limit height */
+    background-color: rgba(42, 42, 42, 0.9); /* Slightly transparent */
+    backdrop-filter: blur(5px); /* Frosted glass effect */
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    border: 1px solid #444;
+    z-index: 20; /* Ensure it's above webcam */
+    display: flex;
+    flex-direction: column; /* Stack button and content */
+    overflow: hidden; /* Prevent content overflow before scroll */
+    transition: transform 0.3s ease-out; /* Smooth slide-in/out */
+}
+
+#toggle-debug-btn {
+    position: absolute;
+    top: 8px;
+    left: -45px; /* Position outside the menu */
+    width: 40px;
+    height: 40px;
+    background-color: rgba(60, 60, 60, 0.9);
+    border: 1px solid #555;
+    color: #fff;
+    font-size: 20px;
+    border-radius: 5px 0 0 5px; /* Rounded on one side */
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    line-height: 1;
+    z-index: 1; /* Above content, below menu background if needed */
+    transition: background-color 0.2s;
+}
+#toggle-debug-btn:hover {
+    background-color: rgba(80, 80, 80, 0.95);
+}
+
+.debug-menu.collapsed {
+    transform: translateX(calc(100% - 10px)); /* Slide out, leave a little visible */
+}
+.debug-menu.collapsed #toggle-debug-btn {
+    /* Adjust button appearance when collapsed if needed */
+}
+
+.debug-content {
+    padding: 10px 15px 15px 15px; /* Adjust padding */
+    overflow-y: auto; /* Enable scrolling for content */
+    flex-grow: 1; /* Allow content to fill space */
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    width: 100%;
-    max-width: 800px;
-    background-color: #1e1e1e;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    gap: 15px; /* Spacing between sections */
+}
+
+.debug-menu h2 {
+    text-align: center;
+    margin-bottom: 15px;
+    color: #ffeb3b;
+    font-size: 1.1em; /* Slightly smaller */
+    border-bottom: 1px solid #555;
+    padding-bottom: 8px;
+    margin-top: 5px;
+}
+
+.debug-section {
+    background-color: rgba(51, 51, 51, 0.8); /* Slightly transparent sections */
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid #5f5f5f;
+}
+
+.debug-section h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: #03a9f4;
+    font-size: 0.95em;
+    text-align: center;
+    font-weight: bold;
+}
+
+.info-section {
+    background-color: rgba(60, 60, 60, 0.85);
+}
+
+.info-section h3 {
+    color: #ddd;
+    margin-bottom: 10px;
 }
 
 .toggle-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 10px; /* Reduced gap */
     justify-content: center;
+    margin-bottom: 10px; /* Space before status */
 }
 
 .toggle-group label {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background-color: #333;
+    gap: 6px; /* Reduced gap */
+    padding: 6px 10px; /* Smaller padding */
+    background-color: #444; /* Darker background */
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.2s;
+    font-size: 0.85em; /* Smaller text */
 }
 
 .toggle-group label:hover {
-    background-color: #444;
+    background-color: #555;
 }
 
 input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+    width: 15px; /* Smaller checkbox */
+    height: 15px;
     cursor: pointer;
+    accent-color: #03a9f4; /* Color the checkmark */
 }
 
 .status {
     text-align: center;
-    padding: 8px;
-    font-size: 14px;
+    padding: 5px;
+    font-size: 13px; /* Smaller font */
     color: #03a9f4;
-}
-
-.debug-menu {
-    width: 100%;
-    max-width: 1000px; 
-    background-color: #2a2a2a; 
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-    margin-top: 15px;
-    border: 1px solid #444;
-    display: flex;
-    flex-direction: column;
-    gap: 20px; 
-}
-
-.debug-menu h2 {
-    text-align: center;
-    margin-bottom: 10px; 
-    color: #ffeb3b; 
-    font-size: 1.2em; 
-    border-bottom: 1px solid #444;
-    padding-bottom: 10px;
-}
-
-.debug-section {
-    background-color: #333;
-    padding: 15px;
-    border-radius: 6px;
-    border: 1px solid #555;
-}
-
-.debug-section h3 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    color: #03a9f4;
-    font-size: 1em;
-    text-align: center;
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 3px;
+    margin-top: 5px;
 }
 
 .debug-controls-grid {
     display: grid;
-    gap: 15px;
-    margin-bottom: 0; 
+    gap: 12px; /* Reduced gap */
 }
 
 .debug-controls-grid.global-controls {
-     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: 1fr; /* Stack global controls vertically */
 }
 
 .debug-controls-grid.part-controls {
-     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
-     gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px; /* Keep gap for parts */
 }
 
 .control-group {
-    border: 1px solid #4a4a4a;
-    padding: 15px 10px 10px 10px; 
+    border: 1px solid #5a5a5a;
+    padding: 10px 8px 8px 8px; /* Reduced padding */
     border-radius: 4px;
     display: flex;
     flex-direction: column;
-    gap: 10px; 
+    gap: 8px; /* Reduced gap */
 }
 
 .control-group legend {
-    padding: 0 8px;
+    padding: 0 6px;
     font-weight: bold;
     color: #ddd;
-    font-size: 0.9em;
+    font-size: 0.85em; /* Smaller legend */
 }
 
 .control-item {
     display: flex;
-    flex-direction: column; 
-    gap: 3px; 
-    align-items: stretch; 
+    flex-direction: column;
+    gap: 2px; /* Tighter spacing */
+    align-items: stretch;
 }
 
 .control-item label {
-    font-size: 13px; 
+    font-size: 12px; /* Smaller label */
     color: #ccc;
-    margin-bottom: 2px; 
+    margin-bottom: 1px;
 }
 
 .control-item input[type="range"] {
     width: 100%;
     cursor: pointer;
-    height: 10px; 
+    height: 8px; /* Slimmer slider */
+    margin-top: 2px;
+}
+
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #03a9f4;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+input[type=range]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: #03a9f4;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
 }
 
 .control-item span {
-    font-size: 13px; 
+    font-size: 12px; /* Smaller value readout */
     color: #ffeb3b;
     font-weight: bold;
     text-align: right;
-    margin-top: 2px; 
+    margin-top: 1px;
+    font-family: 'Courier New', Courier, monospace;
 }
 
 .debug-readouts {
-    margin-top: 0px; 
-    padding-top: 0px; 
-    font-size: 13px;
+    margin-top: 0;
+    padding: 8px; /* Reduced padding */
+    font-size: 12px; /* Smaller text */
     color: #bbb;
-    line-height: 1.6;
-    background-color: #333;
-    padding: 10px;
+    line-height: 1.5;
+    background-color: rgba(51, 51, 51, 0.8);
     border-radius: 4px;
-     border: 1px solid #555;
+    border: 1px solid #5f5f5f;
 }
 
 .debug-readouts p {
-    margin-bottom: 5px;
+    margin-bottom: 4px;
 }
 
 .debug-readouts span {
@@ -234,25 +292,72 @@ input[type="checkbox"] {
     font-family: 'Courier New', Courier, monospace;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
+    .debug-menu {
+        width: 320px; /* Narrower on smaller screens */
+        right: 10px;
+        top: 10px;
+        max-height: calc(100vh - 20px);
+    }
+    #toggle-debug-btn {
+        left: -42px; /* Adjust button position */
+        width: 38px;
+        height: 38px;
+        font-size: 18px;
+    }
+    .debug-menu.collapsed {
+        transform: translateX(calc(100% - 5px)); /* Adjust slide amount */
+    }
+    .webcam-container {
+        width: 160px;
+        height: 90px;
+        bottom: 10px;
+        left: 10px;
+    }
     .debug-controls-grid.part-controls {
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        grid-template-columns: 1fr; /* Stack part controls on small screens */
     }
 }
 
-@media (max-width: 600px) {
-    .toggle-group {
-        flex-direction: column;
-        align-items: flex-start;
+@media (max-width: 480px) {
+    .debug-menu {
+        width: calc(100% - 20px); /* Almost full width */
+        right: 10px;
+        left: 10px;
+        top: 10px;
+        max-height: 60vh; /* Limit height more */
     }
-    .debug-controls-grid {
-        grid-template-columns: 1fr;
+    #toggle-debug-btn {
+        top: 5px;
+        left: 5px; /* Move inside for full width menu */
+        width: 35px;
+        height: 35px;
+        font-size: 16px;
+        border-radius: 5px; /* Fully rounded */
+        z-index: 30; /* Ensure button is above content */
+        background-color: rgba(80, 80, 80, 0.95);
     }
-    .debug-controls-grid.part-controls {
-        grid-template-columns: 1fr; 
+    .debug-menu.collapsed {
+        transform: translateY(-105%);
+        opacity: 0;
+        pointer-events: none;
+    }
+    .debug-menu.collapsed #toggle-debug-btn {
+        opacity: 1; /* Make sure button stays visible */
+        pointer-events: auto;
+        transform: translateY(0); /* Reset button position */
     }
 
-    .debug-menu {
-        max-width: 95%;
+    .debug-content {
+        padding: 10px;
+    }
+
+    .debug-controls-grid.global-controls,
+    .debug-controls-grid.part-controls {
+        grid-template-columns: 1fr;
+    }
+    .webcam-container {
+        width: 128px; /* Even smaller */
+        height: 72px;
     }
 }

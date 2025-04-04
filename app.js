@@ -16,10 +16,16 @@ const Camera = window.Camera;
 const video = document.getElementById('webcam');
 const canvas = document.getElementById('output-canvas');
 const ctx = canvas.getContext('2d');
-const statusElement = document.getElementById('status');
 const sceneContainer = document.getElementById('scene-container');
 
-// Control checkboxes
+// Debug Menu Elements
+const debugMenu = document.getElementById('debug-menu');
+const toggleDebugBtn = document.getElementById('toggle-debug-btn');
+const debugContent = document.getElementById('debug-content'); // Content area to hide/show
+const statusElement = document.getElementById('status'); // Moved inside debug menu
+
+
+// Control checkboxes (ensure selectors are correct after HTML move)
 const showBodyCheckbox = document.getElementById('show-body');
 const showFaceCheckbox = document.getElementById('show-face');
 const showHandsCheckbox = document.getElementById('show-hands');
@@ -115,23 +121,31 @@ let debugLocalScales = {
 // Initialize the application
 async function init() {
     try {
-        statusElement.textContent = "Initializing holistic model...";
+        statusElement.textContent = "Initializing...";
 
-        // Initialize the holistic model
+        // --- Setup UI Controls First ---
+        setupDebugMenuToggle(); // Setup the toggle button listener
+
+        // Initialize Debug Controls Listeners (Sliders, etc.)
+        initDebugControls();
+
+        // --- Initialize MediaPipe ---
+        statusElement.textContent = "Loading Holistic model...";
         holistic = new Holistic({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1635989137/${file}`
         });
-
-        // Configure the model with settings from config.js
         holistic.setOptions(config.modelSettings);
-
-        // Set up the callback for processing results
         holistic.onResults(onResults);
 
-        // Set up the camera
+        // --- Initialize Three.js ---
+        statusElement.textContent = "Setting up 3D scene...";
+        initThreeJS(); // Includes setting up avatar meshes
+
+        // --- Initialize Camera ---
+        statusElement.textContent = "Accessing webcam...";
         camera = new Camera(video, {
             onFrame: async () => {
-                if (holistic) { // Check if holistic is initialized
+                if (holistic && video.readyState >= 2) { // Check holistic & video ready state
                    await holistic.send({image: video});
                 }
             },
@@ -140,69 +154,92 @@ async function init() {
             fps: config.camera.fps
         });
 
-        // Initialize Three.js scene
-        initThreeJS();
-
-        // Initialize Debug Controls
-        initDebugControls();
-
-        // Start the camera
         await camera.start();
-
-        // Resize canvas to match video dimensions
-        resizeCanvasToDisplaySize();
+        resizeCanvasToDisplaySize(); // Resize overlay canvas
 
         statusElement.textContent = "Tracking active";
+
     } catch (error) {
         console.error("Error initializing:", error);
         statusElement.textContent = "Error: " + error.message;
+        if (debugMenu) debugMenu.classList.remove('collapsed'); // Show debug menu on error
     }
 }
 
-// Initialize Three.js scene 
+
+// Setup listener for the debug menu toggle button
+function setupDebugMenuToggle() {
+    if (toggleDebugBtn && debugMenu) {
+        // Start collapsed by default if not on smallest screens (where button moves inside)
+        if (window.innerWidth > 480) {
+             debugMenu.classList.add('collapsed');
+        }
+
+        toggleDebugBtn.addEventListener('click', () => {
+            debugMenu.classList.toggle('collapsed');
+        });
+    } else {
+        console.warn("Debug toggle button or menu not found.");
+    }
+}
+
+
+// Initialize Three.js scene
 function initThreeJS() {
     // Create scene
     scene = new THREE.Scene();
-    // scene.background = new THREE.Color(config.threeJS.background);
+    // scene.background = new THREE.Color(config.threeJS.background); // Replaced by skybox
 
     // Create camera
     camera3D = new THREE.PerspectiveCamera(75, sceneContainer.clientWidth / sceneContainer.clientHeight, 0.1, 1000);
-    camera3D.position.set(0, 0.5, 4); 
-    // camera3D.lookAt(0, -0.5, 0); 
+    camera3D.position.set(0, 0.5, 4);
+    // camera3D.lookAt(0, -0.5, 0); // Look slightly down initially
 
     // Create renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(sceneContainer.clientWidth, sceneContainer.clientHeight);
     renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(window.devicePixelRatio); // Adjust for high DPI screens
     sceneContainer.appendChild(renderer.domElement);
 
     // Initialize OrbitControls
     controls = new OrbitControls(camera3D, renderer.domElement);
-    controls.target.set(0, 0, 0); 
-    controls.enableDamping = true; 
+    controls.target.set(0, 0.5, 0); // Target center of potential avatar
+    controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.screenSpacePanning = false; 
+    controls.screenSpacePanning = false;
     controls.minDistance = 1;
     controls.maxDistance = 20;
-    controls.maxPolarAngle = Math.PI / 1.8; 
-    controls.update(); 
+    controls.maxPolarAngle = Math.PI / 1.9; // Prevent looking straight down or up too far
+    controls.minPolarAngle = Math.PI / 4; // Prevent looking too low
+    controls.update();
 
     // Add lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Slightly brighter ambient
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2); // Slightly brighter directional
     directionalLight.position.set(5, 10, 7.5);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 1024;
     directionalLight.shadow.mapSize.height = 1024;
     directionalLight.shadow.camera.near = 0.5;
     directionalLight.shadow.camera.far = 50;
-    directionalLight.shadow.camera.left = -10;
-    directionalLight.shadow.camera.right = 10;
-    directionalLight.shadow.camera.top = 10;
-    directionalLight.shadow.camera.bottom = -10;
+    directionalLight.shadow.bias = -0.0005; // Adjust shadow bias to prevent artifacts
+    // Set shadow camera bounds appropriately for the scene scale
+    const shadowCamSize = 10;
+    directionalLight.shadow.camera.left = -shadowCamSize;
+    directionalLight.shadow.camera.right = shadowCamSize;
+    directionalLight.shadow.camera.top = shadowCamSize;
+    directionalLight.shadow.camera.bottom = -shadowCamSize;
+
     scene.add(directionalLight);
+    // Optional: Add a light helper
+    // const lightHelper = new THREE.DirectionalLightHelper(directionalLight, 1);
+    // scene.add(lightHelper);
+    // const shadowHelper = new THREE.CameraHelper(directionalLight.shadow.camera);
+    // scene.add(shadowHelper);
+
 
     // Add a Skybox
     const loader = new THREE.CubeTextureLoader();
@@ -219,21 +256,22 @@ function initThreeJS() {
     // Create and add terrain
     terrainMesh = createTerrain(20, 20, 50, 50);
     terrainMesh.receiveShadow = true;
+    terrainMesh.position.y = -1.85; // Ensure it's below the origin slightly more
     scene.add(terrainMesh);
 
     // Initialize avatar meshes
-    faceMesh = initFaceTracking(scene, config); 
-    bodyMesh = initBodyTracking(scene, config); 
+    faceMesh = initFaceTracking(scene, config);
+    bodyMesh = initBodyTracking(scene, config);
     leftHandMesh = initHandTracking(scene, config, 'left');
     rightHandMesh = initHandTracking(scene, config, 'right');
 
     function enableShadows(meshGroup) {
         if (!meshGroup) return;
-        Object.values(meshGroup.landmarks || {}).forEach(mesh => { if(mesh) mesh.castShadow = true });
-        Object.values(meshGroup.joints || {}).forEach(mesh => { if(mesh) mesh.castShadow = true });
-        Object.values(meshGroup.connections || {}).forEach(mesh => { if(mesh) mesh.castShadow = true });
-        Object.values(meshGroup.bones || {}).forEach(mesh => { if(mesh) mesh.castShadow = true });
-        if (meshGroup.neckBone) meshGroup.neckBone.castShadow = true; 
+        Object.values(meshGroup.landmarks || {}).forEach(mesh => { if(mesh) { mesh.castShadow = true; mesh.receiveShadow = false; } }); // Landmarks cast, don't receive much
+        Object.values(meshGroup.joints || {}).forEach(mesh => { if(mesh) { mesh.castShadow = true; mesh.receiveShadow = false; } }); // Joints cast
+        Object.values(meshGroup.connections || {}).forEach(mesh => { if(mesh) { mesh.castShadow = true; mesh.receiveShadow = true; } }); // Bones cast and receive
+        Object.values(meshGroup.bones || {}).forEach(mesh => { if(mesh) { mesh.castShadow = true; mesh.receiveShadow = true; } }); // Bones cast and receive
+        if (meshGroup.neckBone) { meshGroup.neckBone.castShadow = true; meshGroup.neckBone.receiveShadow = true; }
     }
     enableShadows(bodyMesh);
     enableShadows(faceMesh);
@@ -241,17 +279,24 @@ function initThreeJS() {
     enableShadows(rightHandMesh);
 
     // Handle window resize
-    window.addEventListener('resize', () => {
-        if (camera3D && renderer && sceneContainer) {
-            camera3D.aspect = sceneContainer.clientWidth / sceneContainer.clientHeight;
-            camera3D.updateProjectionMatrix();
-            renderer.setSize(sceneContainer.clientWidth, sceneContainer.clientHeight);
-        }
-    });
+    window.addEventListener('resize', onWindowResize);
 
     // Start animation loop
     animate();
 }
+
+function onWindowResize() {
+    if (camera3D && renderer && sceneContainer) {
+        const width = sceneContainer.clientWidth;
+        const height = sceneContainer.clientHeight;
+
+        camera3D.aspect = width / height;
+        camera3D.updateProjectionMatrix();
+        renderer.setSize(width, height);
+    }
+     resizeCanvasToDisplaySize(); // Also resize the overlay canvas
+}
+
 
 // Initialize Debug Controls Listeners
 function initDebugControls() {
@@ -322,7 +367,9 @@ function formatVector(vec, precision = 2) {
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
-    if(controls) controls.update(); // Required if damping or auto-rotation is enabled
+    const delta = clock.getDelta(); // If using physics or time-based animations
+
+    if(controls) controls.update(); // Required if damping is enabled
 
     // Update debug readouts
     if (camera3D && controls) {
@@ -335,16 +382,25 @@ function animate() {
     }
 }
 
-// Handle window resize
-window.addEventListener('resize', resizeCanvasToDisplaySize);
+// Clock for animation timing (if needed later)
+const clock = new THREE.Clock();
+
+
+// Handle resizing the overlay canvas
+// window.addEventListener('resize', resizeCanvasToDisplaySize); // Listener moved to onWindowResize
 
 function resizeCanvasToDisplaySize() {
-    if (!video || !canvas) return; // Add guards
-    const vidWidth = video.clientWidth;
-    const vidHeight = video.clientHeight;
+    if (!video || !canvas || video.videoWidth === 0) return; // Add guards and check video dimensions
 
-    canvas.width = vidWidth;
-    canvas.height = vidHeight;
+    const displayWidth = video.clientWidth;
+    const displayHeight = video.clientHeight;
+
+    // Check if the canvas size is different to avoid unnecessary resizing
+    if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+        canvas.width = displayWidth;
+        canvas.height = displayHeight;
+        // console.log(`Resized overlay canvas to ${displayWidth}x${displayHeight}`);
+    }
 }
 
 // Update the 3D scene with new pose data
@@ -373,7 +429,7 @@ function updateThreeJSPose(results) {
             results.leftHandLandmarks,
             results.rightHandLandmarks,
             results.faceLandmarks,
-            faceMesh,
+            faceMesh, // Pass face mesh for neck connection
             debugGlobalOffset, // Pass global offset
             debugGlobalScale,  // Pass global scale
             debugLocalOffsets.body, // Pass local body offset
@@ -420,9 +476,11 @@ function updateThreeJSPose(results) {
     }
 }
 
-// Process and visualize the tracking results 
+// Process and visualize the tracking results
 function onResults(results) {
-    // Clear the canvas
+    // Ensure canvas is ready and sized correctly before drawing
+    resizeCanvasToDisplaySize();
+    ctx.save(); // Save context state
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Only draw if we have results
@@ -432,90 +490,115 @@ function onResults(results) {
        hideBodyMesh(bodyMesh);
        hideHandMesh(leftHandMesh);
        hideHandMesh(rightHandMesh);
+       ctx.restore(); // Restore context state
        return;
     }
 
     // Update 3D visualization with the new pose data
     updateThreeJSPose(results);
 
+    // --- Draw 2D overlay ---
+    // Scale landmarks to canvas coordinates
+    const scaleX = canvas.width;
+    const scaleY = canvas.height;
+
+    const scaleLandmarks = (landmarks) => {
+        if (!landmarks) return null;
+        return landmarks.map(lm => ({
+            x: lm.x * scaleX,
+            y: lm.y * scaleY,
+            z: lm.z, // Keep z for potential use, though not used in 2D drawing
+            visibility: lm.visibility
+        }));
+    };
+
+    const poseLandmarksScaled = scaleLandmarks(results.poseLandmarks);
+    const faceLandmarksScaled = scaleLandmarks(results.faceLandmarks);
+    const leftHandLandmarksScaled = scaleLandmarks(results.leftHandLandmarks);
+    const rightHandLandmarksScaled = scaleLandmarks(results.rightHandLandmarks);
+
+
     // Draw body pose if enabled (on the small webcam feed)
-    if (showBodyCheckbox.checked && results.poseLandmarks) {
+    if (showBodyCheckbox.checked && poseLandmarksScaled) {
         let activePoseConnections = [...POSE_CONNECTIONS];
+        // Filter out wrist-to-finger connections if hands are active
         if (showHandsCheckbox.checked) {
-            const wristToFingerLeft = [[15, 17], [15, 19], [15, 21]];
-            const wristToFingerRight = [[16, 18], [16, 20], [16, 22]];
+            const wristToFingerLeftIndices = [[15, 17], [15, 19], [15, 21]];
+            const wristToFingerRightIndices = [[16, 18], [16, 20], [16, 22]];
             activePoseConnections = activePoseConnections.filter(conn => {
-                 const isLeftWf = results.leftHandLandmarks && wristToFingerLeft.some(wf => (wf[0] === conn[0] && wf[1] === conn[1]) || (wf[0] === conn[1] && wf[1] === conn[0]));
-                 const isRightWf = results.rightHandLandmarks && wristToFingerRight.some(wf => (wf[0] === conn[0] && wf[1] === conn[1]) || (wf[0] === conn[1] && wf[1] === conn[0]));
+                 const isLeftWf = results.leftHandLandmarks && wristToFingerLeftIndices.some(wf => (wf[0] === conn[0] && wf[1] === conn[1]) || (wf[0] === conn[1] && wf[1] === conn[0]));
+                 const isRightWf = results.rightHandLandmarks && wristToFingerRightIndices.some(wf => (wf[0] === conn[0] && wf[1] === conn[1]) || (wf[0] === conn[1] && wf[1] === conn[0]));
                  return !isLeftWf && !isRightWf;
             });
         }
 
         drawConnectors(
-            ctx, results.poseLandmarks, activePoseConnections,
-            {color: config.colors.body.connectors}
+            ctx, poseLandmarksScaled, activePoseConnections,
+            {color: config.colors.body.connectors, lineWidth: 2} // Thinner lines for overlay
         );
 
+        // Filter landmarks to draw (excluding face, wrists/fingers if hands shown)
         const landmarksToDraw = {};
         const leftFingerBaseIndices = [17, 19, 21];
         const rightFingerBaseIndices = [18, 20, 22];
-        const leftHandActive = showHandsCheckbox.checked && results.leftHandLandmarks;
-        const rightHandActive = showHandsCheckbox.checked && results.rightHandLandmarks;
+        const leftHandActive = showHandsCheckbox.checked && leftHandLandmarksScaled;
+        const rightHandActive = showHandsCheckbox.checked && rightHandLandmarksScaled;
 
-        results.poseLandmarks.forEach((lm, index) => {
-            if (index < 11) return; 
-            if (leftHandActive && leftFingerBaseIndices.includes(index)) return; 
-            if (rightHandActive && rightFingerBaseIndices.includes(index)) return; 
-            if (leftHandActive && index === 15) return;
-            if (rightHandActive && index === 16) return;
+        poseLandmarksScaled.forEach((lm, index) => {
+            if (index < 11) return; // Skip face landmarks (0-10)
+            if (leftHandActive && (index === 15 || leftFingerBaseIndices.includes(index))) return; // Skip left wrist/fingers if hand active
+            if (rightHandActive && (index === 16 || rightFingerBaseIndices.includes(index))) return; // Skip right wrist/fingers if hand active
 
             landmarksToDraw[index] = lm;
         });
 
         drawLandmarks(
             ctx, Object.values(landmarksToDraw),
-            {color: config.colors.body.landmarks, radius: config.pointSizes.body}
+            {color: config.colors.body.landmarks, radius: config.pointSizes.body / 1.5 } // Smaller points for overlay
         );
     }
-    
+
     // Draw face if enabled (on the small webcam feed)
-    if (showFaceCheckbox.checked) {
-        if (results.faceLandmarks) {
-            drawConnectors(
-                ctx, results.faceLandmarks, FACEMESH_CONTOURS,
-                {color: config.colors.face.connectors}
-            );
-        }
+    if (showFaceCheckbox.checked && faceLandmarksScaled) {
+        drawConnectors(
+            ctx, faceLandmarksScaled, FACEMESH_CONTOURS, // Use contours for less clutter
+            {color: config.colors.face.connectors, lineWidth: 1}
+        );
+        // Optional: draw face landmarks (can be very cluttered)
+        // drawLandmarks(
+        //     ctx, faceLandmarksScaled,
+        //     {color: config.colors.face.landmarks, radius: config.pointSizes.faceMesh}
+        // );
     }
-    
+
     // Draw hands if enabled (on the small webcam feed)
     if (showHandsCheckbox.checked) {
         // Left hand
-        if (results.leftHandLandmarks) {
+        if (leftHandLandmarksScaled) {
             drawConnectors(
-                ctx, results.leftHandLandmarks, HAND_CONNECTIONS,
-                {color: config.colors.leftHand.connectors}
+                ctx, leftHandLandmarksScaled, HAND_CONNECTIONS,
+                {color: config.colors.leftHand.connectors, lineWidth: 2}
             );
-            
             drawLandmarks(
-                ctx, results.leftHandLandmarks,
-                {color: config.colors.leftHand.landmarks, radius: config.pointSizes.hand}
+                ctx, leftHandLandmarksScaled,
+                {color: config.colors.leftHand.landmarks, radius: config.pointSizes.hand / 1.5}
             );
         }
-        
+
         // Right hand
-        if (results.rightHandLandmarks) {
+        if (rightHandLandmarksScaled) {
             drawConnectors(
-                ctx, results.rightHandLandmarks, HAND_CONNECTIONS,
-                {color: config.colors.rightHand.connectors}
+                ctx, rightHandLandmarksScaled, HAND_CONNECTIONS,
+                {color: config.colors.rightHand.connectors, lineWidth: 2}
             );
-            
             drawLandmarks(
-                ctx, results.rightHandLandmarks,
-                {color: config.colors.rightHand.landmarks, radius: config.pointSizes.hand}
+                ctx, rightHandLandmarksScaled,
+                {color: config.colors.rightHand.landmarks, radius: config.pointSizes.hand / 1.5}
             );
         }
     }
+
+    ctx.restore(); // Restore context state
 }
 
 // Initialize the app when the page loads
