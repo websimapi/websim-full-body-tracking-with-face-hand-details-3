@@ -75,38 +75,40 @@ html, body {
     display: flex;
     flex-direction: column; /* Stack button and content */
     overflow: hidden; /* Prevent content overflow before scroll */
-    transition: transform 0.3s ease-out; /* Smooth slide-in/out */
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out; /* Smooth transitions */
+    transform: translateX(0); /* Default state: visible */
+    opacity: 1;
 }
 
 #toggle-debug-btn {
-    position: absolute;
-    top: 8px;
-    left: -45px; /* Position outside the menu */
+    position: fixed; /* Fixed relative to viewport */
+    top: 15px;       /* Align with menu top */
+    right: 15px;      /* Align with menu right initially */
     width: 40px;
     height: 40px;
     background-color: rgba(60, 60, 60, 0.9);
     border: 1px solid #555;
     color: #fff;
     font-size: 20px;
-    border-radius: 5px 0 0 5px; /* Rounded on one side */
+    border-radius: 5px; /* Fully rounded */
     cursor: pointer;
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 0;
     line-height: 1;
-    z-index: 1; /* Above content, below menu background if needed */
-    transition: background-color 0.2s;
+    z-index: 21; /* Above the menu */
+    transition: background-color 0.2s, transform 0.3s ease-out;
 }
+
 #toggle-debug-btn:hover {
     background-color: rgba(80, 80, 80, 0.95);
 }
 
 .debug-menu.collapsed {
-    transform: translateX(calc(100% - 10px)); /* Slide out, leave a little visible */
-}
-.debug-menu.collapsed #toggle-debug-btn {
-    /* Adjust button appearance when collapsed if needed */
+    transform: translateX(calc(100% + 20px)); /* Slide completely off-screen */
+    opacity: 0; /* Fade out */
+    pointer-events: none; /* Disable interaction when hidden */
 }
 
 .debug-content {
@@ -116,6 +118,7 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 15px; /* Spacing between sections */
+    margin-top: 35px; /* Add space for the absolutely positioned button if it overlaps */
 }
 
 .debug-menu h2 {
@@ -300,13 +303,14 @@ input[type=range]::-moz-range-thumb {
         max-height: calc(100vh - 20px);
     }
     #toggle-debug-btn {
-        left: -42px; /* Adjust button position */
+        right: 10px; /* Align with menu */
+        top: 10px;   /* Align with menu */
         width: 38px;
         height: 38px;
         font-size: 18px;
     }
     .debug-menu.collapsed {
-        transform: translateX(calc(100% - 5px)); /* Adjust slide amount */
+         transform: translateX(calc(100% + 15px)); /* Adjust slide amount */
     }
     .webcam-container {
         width: 160px;
@@ -317,6 +321,9 @@ input[type=range]::-moz-range-thumb {
     .debug-controls-grid.part-controls {
         grid-template-columns: 1fr; /* Stack part controls on small screens */
     }
+     .debug-content {
+        margin-top: 30px; /* Adjust space for smaller button */
+    }
 }
 
 @media (max-width: 480px) {
@@ -325,36 +332,28 @@ input[type=range]::-moz-range-thumb {
         right: 10px;
         left: 10px;
         top: 10px;
-        max-height: 60vh; /* Limit height more */
+        max-height: 65vh; /* Limit height more */
     }
     #toggle-debug-btn {
-        top: 5px;
-        left: 5px; /* Move inside for full width menu */
+        top: 10px;
+        right: 10px; /* Keep in top right corner */
         width: 35px;
         height: 35px;
         font-size: 16px;
-        border-radius: 5px; /* Fully rounded */
-        z-index: 30; /* Ensure button is above content */
-        background-color: rgba(80, 80, 80, 0.95);
     }
     .debug-menu.collapsed {
-        transform: translateY(-105%);
+        transform: translateX(calc(100% + 15px)); /* Keep horizontal slide */
         opacity: 0;
         pointer-events: none;
     }
-    .debug-menu.collapsed #toggle-debug-btn {
-        opacity: 1; /* Make sure button stays visible */
-        pointer-events: auto;
-        transform: translateY(0); /* Reset button position */
-    }
-
     .debug-content {
         padding: 10px;
+        margin-top: 30px; /* Adjust space for smaller button */
     }
 
     .debug-controls-grid.global-controls,
     .debug-controls-grid.part-controls {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr; /* Stack all controls */
     }
     .webcam-container {
         width: 128px; /* Even smaller */
