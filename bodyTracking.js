@@ -23,6 +23,27 @@ const WRIST_TO_FINGER_CONNECTIONS = {
     right: [[16, 18], [16, 20], [16, 22]],
 };
 
+// Mapping landmark indices to body part names for adjustments
+const LANDMARK_TO_BODY_PART = {
+    11: 'shoulders', // Left Shoulder
+    12: 'shoulders', // Right Shoulder
+    13: 'leftArm',   // Left Elbow
+    14: 'rightArm',  // Right Elbow
+    // 15: 'leftArm',   // Left Wrist (Handled by hand tracking or potentially arm)
+    // 16: 'rightArm',  // Right Wrist (Handled by hand tracking or potentially arm)
+    23: 'hips',      // Left Hip (Use leg adjustments for now)
+    24: 'hips',      // Right Hip (Use leg adjustments for now)
+    25: 'leftLeg',   // Left Knee
+    26: 'rightLeg',  // Right Knee
+    27: 'leftLeg',   // Left Ankle
+    28: 'rightLeg',  // Right Ankle
+    // 29, 30, 31, 32 are feet landmarks, apply leg adjustments
+    29: 'leftLeg',
+    31: 'leftLeg',
+    30: 'rightLeg',
+    32: 'rightLeg',
+};
+
 // Helper function to check if a connection involves wrist-to-fingers
 function isWristToFingerConnection(connection, side) {
     const connectionsToCheck = WRIST_TO_FINGER_CONNECTIONS[side];
@@ -36,6 +57,7 @@ function isWristToFingerConnection(connection, side) {
 const _tempJointPos = new THREE.Vector3(); // Renamed from _initialBodyJointPos for clarity
 const _shoulderMidpoint = new THREE.Vector3(); // For neck bone calculation
 const _centerPoint = new THREE.Vector3(); // For scaling calculations
+const _tempScaleVec = new THREE.Vector3(); // For granular scaling relative to anchor
 
 // Initialize body tracking
 export function initBodyTracking(scene, config) {
@@ -103,8 +125,9 @@ export function updateBodyMesh(
     faceMesh,
     globalOffset,
     globalScale,
-    localOffset, // Added: Body-specific offset
-    localScale  // Added: Body-specific scale
+    localOffset, // Overall body-specific offset
+    localScale,  // Overall body-specific scale
+    bodyPartAdjustments // NEW: Granular adjustments
 ) {
     const baseScaleFactor = 2.5; // Base scaling from MediaPipe coords
     const baseYOffset = 0.8; // Base Y offset
@@ -112,7 +135,7 @@ export function updateBodyMesh(
     const rightHandActive = rightHandLandmarks && rightHandLandmarks.length > 0;
     const faceActive = faceLandmarks && faceLandmarks.length > 152 && faceMesh && faceMesh.landmarks[152];
 
-    // --- Z-Axis Alignment Calculation (remains the same for now) ---
+    // --- Z-Axis Alignment Calculation (remains the same) ---
     let targetShoulderZ = null;
     if (faceActive && landmarks && landmarks.length > 12 && faceLandmarks && faceLandmarks.length > 152) {
         const poseNose = landmarks[0];
@@ -160,19 +183,50 @@ export function updateBodyMesh(
             (zValue * baseScaleFactor) // Use potentially adjusted zValue
         );
 
-        // 2. Apply LOCAL offset and scale (relative to the base position)
-        // Scaling is tricky relative to a point. Simple approach: scale the offset from the base Y offset.
+        // 2. Apply OVERALL body local offset and scale
         _tempJointPos.y -= baseYOffset; // Offset from base Y
-        _tempJointPos.multiplyScalar(localScale); // Apply local scale
+        _tempJointPos.multiplyScalar(localScale); // Apply overall body scale
         _tempJointPos.y += baseYOffset; // Add base Y back
-        _tempJointPos.add(localOffset); // Apply local offset
+        _tempJointPos.add(localOffset); // Apply overall body offset
 
-        // 3. Apply GLOBAL scale (relative to the global center point)
+        // 3. Apply GRANULAR body part offset and scale (if applicable)
+        const partName = LANDMARK_TO_BODY_PART[i];
+        let partAdjustment = null;
+        if(partName && bodyPartAdjustments[partName]) {
+            partAdjustment = bodyPartAdjustments[partName];
+        } else if (partName === 'hips') { // Apply leg adjustments to hips for now
+             partAdjustment = (i === 23) ? bodyPartAdjustments.leftLeg : bodyPartAdjustments.rightLeg;
+        }
+
+        if (partAdjustment) {
+             // Apply granular offset directly for simplicity
+            _tempJointPos.add(partAdjustment.offset);
+
+            // Apply granular scale - this is tricky. Simple approach: scale the vector
+            // from a relevant anchor point (shoulder/hip). Let's start simpler:
+            // Apply scale centered around the joint itself (less physically accurate for limbs)
+            // A better approach would require knowing the parent joint position *after step 2*
+            // For now, we'll skip granular scaling to avoid complexity, only apply offset.
+            // To implement scaling:
+            // let anchorPos;
+            // if (partName === 'leftArm' || partName === 'shoulders') anchorPos = bodyMesh.joints[11].position; // Need position *before* global transforms
+            // else if (partName === 'rightArm') anchorPos = bodyMesh.joints[12].position;
+            // else if (partName === 'leftLeg') anchorPos = bodyMesh.joints[23].position;
+            // else if (partName === 'rightLeg') anchorPos = bodyMesh.joints[24].position;
+            // if (anchorPos) {
+            //     _tempScaleVec.subVectors(_tempJointPos, anchorPos);
+            //     _tempScaleVec.multiplyScalar(partAdjustment.scale);
+            //     _tempJointPos.addVectors(anchorPos, _tempScaleVec);
+            // }
+             // TODO: Implement more robust granular scaling if needed. Sticking to offset for now.
+        }
+
+        // 4. Apply GLOBAL scale (relative to the global center point)
         _tempJointPos.sub(_centerPoint); // Vector from global center to current pos
         _tempJointPos.multiplyScalar(globalScale); // Scale this vector
         _tempJointPos.add(_centerPoint); // Add back to global center
 
-        // 4. Apply GLOBAL offset
+        // 5. Apply GLOBAL offset
         joint.position.copy(_tempJointPos).add(globalOffset);
         // --- End Transformation Order ---
 
@@ -188,9 +242,9 @@ export function updateBodyMesh(
     }
 
     // --- Neck Connection Update ---
-    // Use the *final* joint positions which include all offsets/scales
+    // Uses the *final* joint positions which include all offsets/scales
     if (faceActive && bodyMesh.neckBone && faceMesh.landmarks[152]) {
-        const chinJoint = faceMesh.landmarks[152]; // This position already includes its own global/local offset/scale
+        const chinJoint = faceMesh.landmarks[152]; // Position already includes its transforms
         const leftShoulderJoint = bodyMesh.joints[11];
         const rightShoulderJoint = bodyMesh.joints[12];
 
@@ -206,11 +260,10 @@ export function updateBodyMesh(
     }
     // --- End Neck Connection Update ---
 
-    // Update bones between joints (logic remains mostly the same, uses final joint positions)
+    // Update bones between joints (uses final joint positions)
     for (const connection of POSE_CONNECTIONS) {
         const [i, j] = connection;
         const connectionKey = connection.join('-');
-        // Use the stored key, avoid reconstructing potentially reversed key
         const bone = bodyMesh.bones[connectionKey] || bodyMesh.bones[`${j}-${i}`];
         if (!bone) continue;
 

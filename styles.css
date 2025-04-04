@@ -224,11 +224,25 @@ input[type="checkbox"] {
     gap: 8px; /* Reduced gap */
 }
 
+.control-group.nested-group {
+    border-color: #4a4a4a; /* Slightly darker border for nested */
+    background-color: rgba(0, 0, 0, 0.1); /* Subtle background difference */
+    padding: 8px 6px 6px 6px; /* Tighter padding */
+    margin-top: 8px; /* Add some space above nested groups */
+    gap: 6px; /* Tighter gap inside nested groups */
+}
+
 .control-group legend {
     padding: 0 6px;
     font-weight: bold;
     color: #ddd;
     font-size: 0.85em; /* Smaller legend */
+}
+
+.control-group.nested-group legend {
+    font-size: 0.75em; /* Even smaller for nested legends */
+    color: #bbb;
+    font-weight: normal;
 }
 
 .control-item {
@@ -326,7 +340,14 @@ input[type=range]::-moz-range-thumb {
         left: 10px;
     }
     .debug-controls-grid.part-controls {
-        grid-template-columns: 1fr; /* Stack part controls on small screens */
+         /* Stack main part groups vertically */
+        grid-template-columns: 1fr;
+    }
+     /* Allow nested groups to still fit side-by-side if space allows */
+    .body-controls-group {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 10px;
     }
 }
 
@@ -373,6 +394,10 @@ input[type=range]::-moz-range-thumb {
     .debug-controls-grid.part-controls {
         grid-template-columns: 1fr;
     }
+     /* Ensure nested groups stack on smallest screens */
+     .body-controls-group {
+        grid-template-columns: 1fr;
+     }
     .webcam-container {
         width: 128px; /* Even smaller */
         height: 72px;
