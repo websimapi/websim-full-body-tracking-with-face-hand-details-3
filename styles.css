@@ -76,39 +76,44 @@ html, body {
     flex-direction: column; /* Stack button and content */
     overflow: hidden; /* Prevent content overflow before scroll */
     transition: transform 0.3s ease-out, opacity 0.3s ease-out; /* Smooth transitions */
-    transform: translateX(0); /* Default state: visible */
-    opacity: 1;
 }
 
 #toggle-debug-btn {
-    position: fixed; /* Fixed relative to viewport */
-    top: 15px;       /* Align with menu top */
-    right: 15px;      /* Align with menu right initially */
+    position: absolute;
+    top: 8px;
+    left: -45px; /* Position outside the menu */
     width: 40px;
     height: 40px;
     background-color: rgba(60, 60, 60, 0.9);
     border: 1px solid #555;
     color: #fff;
     font-size: 20px;
-    border-radius: 5px; /* Fully rounded */
+    border-radius: 5px 0 0 5px; /* Rounded on one side */
     cursor: pointer;
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 0;
     line-height: 1;
-    z-index: 21; /* Above the menu */
-    transition: background-color 0.2s, transform 0.3s ease-out;
+    z-index: 1; /* Above content, below menu background if needed */
+    transition: background-color 0.2s;
 }
-
 #toggle-debug-btn:hover {
     background-color: rgba(80, 80, 80, 0.95);
 }
 
 .debug-menu.collapsed {
-    transform: translateX(calc(100% + 20px)); /* Slide completely off-screen */
-    opacity: 0; /* Fade out */
-    pointer-events: none; /* Disable interaction when hidden */
+    /* REMOVED transform: translateX(calc(100% - 10px)); */
+    /* Instead, use opacity and pointer-events for hiding */
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(20px); /* Optional: slight slide out effect */
+}
+.debug-menu.collapsed #toggle-debug-btn {
+    /* Adjust button appearance when collapsed if needed */
+    /* Example: Make button more opaque when menu is hidden */
+    opacity: 1;
+    pointer-events: auto; /* Ensure button is always clickable */
 }
 
 .debug-content {
@@ -118,7 +123,6 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 15px; /* Spacing between sections */
-    margin-top: 35px; /* Add space for the absolutely positioned button if it overlaps */
 }
 
 .debug-menu h2 {
@@ -295,6 +299,8 @@ input[type=range]::-moz-range-thumb {
     font-family: 'Courier New', Courier, monospace;
 }
 
+/* --- Responsive Adjustments --- */
+
 @media (max-width: 768px) {
     .debug-menu {
         width: 320px; /* Narrower on smaller screens */
@@ -303,14 +309,15 @@ input[type=range]::-moz-range-thumb {
         max-height: calc(100vh - 20px);
     }
     #toggle-debug-btn {
-        right: 10px; /* Align with menu */
-        top: 10px;   /* Align with menu */
+        left: -42px; /* Adjust button position */
         width: 38px;
         height: 38px;
         font-size: 18px;
     }
     .debug-menu.collapsed {
-         transform: translateX(calc(100% + 15px)); /* Adjust slide amount */
+        /* Keep opacity/pointer-events from base .collapsed rule */
+        /* transform: translateX(calc(100% - 5px)); REMOVED */
+        transform: translateX(15px); /* Slight slide */
     }
     .webcam-container {
         width: 160px;
@@ -321,9 +328,6 @@ input[type=range]::-moz-range-thumb {
     .debug-controls-grid.part-controls {
         grid-template-columns: 1fr; /* Stack part controls on small screens */
     }
-     .debug-content {
-        margin-top: 30px; /* Adjust space for smaller button */
-    }
 }
 
 @media (max-width: 480px) {
@@ -332,28 +336,42 @@ input[type=range]::-moz-range-thumb {
         right: 10px;
         left: 10px;
         top: 10px;
-        max-height: 65vh; /* Limit height more */
+        max-height: 60vh; /* Limit height more */
+        /* Ensure transform origin is reasonable if using transform for hiding */
+        transform-origin: top center;
     }
     #toggle-debug-btn {
-        top: 10px;
-        right: 10px; /* Keep in top right corner */
+        top: 5px;
+        left: 5px; /* Move inside for full width menu */
         width: 35px;
         height: 35px;
         font-size: 16px;
+        border-radius: 5px; /* Fully rounded */
+        z-index: 30; /* Ensure button is above content */
+        background-color: rgba(80, 80, 80, 0.95);
     }
     .debug-menu.collapsed {
-        transform: translateX(calc(100% + 15px)); /* Keep horizontal slide */
-        opacity: 0;
-        pointer-events: none;
+        /* Keep opacity/pointer-events */
+        /* transform: translateY(-105%); Original vertical slide */
+        /* Switch back to horizontal or just rely on opacity */
+         transform: translateY(-20px); /* Slight lift up effect */
+         /* OR transform: translateX(10px); Slight slide right */
+         /* OR remove transform entirely if opacity fade is enough */
     }
+     .debug-menu.collapsed #toggle-debug-btn {
+         /* Ensure button is visible and clickable when menu is collapsed */
+        opacity: 1;
+        pointer-events: auto;
+        transform: none; /* Reset any transform inherited from .debug-menu.collapsed */
+    }
+
     .debug-content {
         padding: 10px;
-        margin-top: 30px; /* Adjust space for smaller button */
     }
 
     .debug-controls-grid.global-controls,
     .debug-controls-grid.part-controls {
-        grid-template-columns: 1fr; /* Stack all controls */
+        grid-template-columns: 1fr;
     }
     .webcam-container {
         width: 128px; /* Even smaller */

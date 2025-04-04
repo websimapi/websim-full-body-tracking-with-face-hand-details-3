@@ -4,11 +4,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced 3D Body Tracking Debug</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- MediaPipe JS -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1635989137/holistic.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <!-- Import Map for JS Modules -->
     <script type="importmap">
         {
             "imports": {
@@ -23,21 +21,19 @@
 </head>
 <body>
     <div class="container">
-        <!-- 3D Scene Container -->
+        <!-- Scene Container takes up most space -->
         <div id="scene-container"></div>
 
-        <!-- Webcam Preview (Bottom Left) -->
+        <!-- Webcam Preview -->
         <div class="webcam-container">
             <video id="webcam" autoplay playsinline></video>
             <canvas id="output-canvas"></canvas>
         </div>
 
-        <!-- Debug Menu (Top Right, Slides Out) -->
+        <!-- Debug Menu (Fixed Position) -->
         <div class="debug-menu" id="debug-menu">
-             <!-- Toggle Button now positioned via CSS relative to body/container -->
              <button id="toggle-debug-btn">🛠️</button>
              <div class="debug-content" id="debug-content">
-                <!-- Content remains the same -->
                 <h2>Debug Controls</h2>
 
                 <!-- Tracking Toggles & Status -->
@@ -57,7 +53,7 @@
                             Hands
                         </label>
                     </div>
-                    <div class="status" id="status">Loading...</div>
+                    <div class="status" id="status">Loading models...</div>
                  </div>
 
 
@@ -205,7 +201,6 @@
              </div> <!-- end debug-content -->
         </div>
     </div>
-    <!-- Main App Logic -->
     <script type="module" src="app.js"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
