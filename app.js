@@ -18,6 +18,12 @@ const canvas = document.getElementById('output-canvas');
 const ctx = canvas.getContext('2d');
 const statusElement = document.getElementById('status');
 const sceneContainer = document.getElementById('scene-container');
+const calibrationOverlay = document.getElementById('calibration-overlay');
+const calibrateButton = document.getElementById('calibrate-button');
+const recalibrateButton = document.getElementById('recalibrate-button');
+const countdownElement = document.getElementById('countdown');
+const calibrationStatusElement = document.getElementById('calibration-status');
+const mainContentElement = document.getElementById('main-content');
 
 // Control checkboxes
 const showBodyCheckbox = document.getElementById('show-body');
@@ -27,6 +33,14 @@ const showHandsCheckbox = document.getElementById('show-hands');
 // Tracking state
 let holistic;
 let camera;
+let isInitialized = false;
+let isCalibrated = false;
+let isCalibrating = false;
+let captureForCalibration = false;
+let calibrationData = null;
+let countdownTimer = null;
+let countdownValue = 5;
+const BASE_SCALE_FACTOR = 2.5; // Base scaling for the 3D model
 
 // Three.js objects
 let scene, renderer, camera3D, controls;
@@ -36,60 +50,179 @@ let leftHandMesh = {};
 let rightHandMesh = {};
 let terrainMesh;
 
-// Initialize the application
-async function init() {
+// Helper function to calculate 2D distance between landmarks
+function calculateDistance2D(p1, p2) {
+    if (!p1 || !p2) return 0;
+    const dx = p1.x - p2.x;
+    const dy = p1.y - p2.y;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Initialize the application logic (called after DOM loaded)
+async function initializeApp() {
+    if (isInitialized) return;
+    isInitialized = true; // Prevent re-initialization
+
     try {
         statusElement.textContent = "Initializing holistic model...";
-        
+        calibrationStatusElement.textContent = "Waiting for calibration...";
+
         // Initialize the holistic model
         holistic = new Holistic({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1635989137/${file}`;
-            }
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1635989137/${file}`
         });
-        
-        // Configure the model with settings from config.js
+
+        // Configure the model
         holistic.setOptions(config.modelSettings);
-        
+
         // Set up the callback for processing results
         holistic.onResults(onResults);
-        
-        // Set up the camera
+
+        // Set up the camera - DON'T START YET
         camera = new Camera(video, {
             onFrame: async () => {
-                await holistic.send({image: video});
+                // Send frame only if model is ready and camera is active
+                if (holistic && video.readyState === 4) {
+                    try {
+                        await holistic.send({ image: video });
+                    } catch (error) {
+                        console.error("Error sending frame to Holistic:", error);
+                        statusElement.textContent = "Error processing video frame.";
+                        // Optionally stop camera or reset state here
+                    }
+                }
             },
             width: config.camera.width,
             height: config.camera.height,
-            fps: config.camera.fps
+            facingMode: 'user' // Explicitly request user-facing camera
         });
-        
+
         // Initialize Three.js scene
         initThreeJS();
-        
-        // Start the camera
-        await camera.start();
-        
-        // Resize canvas to match video dimensions
-        resizeCanvasToDisplaySize();
-        
-        statusElement.textContent = "Tracking active";
+
+        // Setup calibration button listener
+        calibrateButton.addEventListener('click', startCalibration);
+        recalibrateButton.addEventListener('click', startCalibration); // Allow recalibration
+
+        // Initial UI state: show calibration overlay, hide main content
+        calibrationOverlay.classList.remove('hidden');
+        mainContentElement.classList.add('hidden');
+
+        // Don't start camera automatically, wait for calibration button click
+        statusElement.textContent = "Ready to calibrate.";
+
     } catch (error) {
         console.error("Error initializing:", error);
-        statusElement.textContent = "Error: " + error.message;
+        statusElement.textContent = "Initialization Error: " + error.message;
+        calibrationStatusElement.textContent = "Initialization failed. Please refresh.";
+        // Hide calibration button if init fails fundamentally
+        calibrateButton.style.display = 'none';
     }
 }
 
-// Initialize Three.js scene
+// Start the calibration process
+async function startCalibration() {
+    if (isCalibrating) return; // Prevent multiple clicks
+
+    isCalibrating = true;
+    isCalibrated = false; // Reset calibration status
+    calibrationData = null;
+    calibrateButton.disabled = true; // Disable button during calibration
+    recalibrateButton.disabled = true;
+    calibrationStatusElement.textContent = "Starting camera...";
+    countdownElement.style.display = 'none'; // Hide countdown initially
+
+    // Ensure overlay is visible, main content hidden
+    calibrationOverlay.classList.remove('hidden');
+    mainContentElement.classList.add('hidden');
+
+    try {
+        // Start the camera if not already running (or restart if needed)
+        if (!camera.video) { // Check if camera was ever started
+            await camera.start();
+        } else if (video.paused) { // If paused from previous session
+            video.play();
+        }
+        resizeCanvasToDisplaySize(); // Ensure canvas is sized correctly
+        calibrationStatusElement.textContent = "Get in position...";
+
+        // Start countdown
+        countdownValue = 5;
+        countdownElement.textContent = countdownValue;
+        countdownElement.style.display = 'block'; // Show countdown
+
+        countdownTimer = setInterval(() => {
+            countdownValue--;
+            countdownElement.textContent = countdownValue;
+            if (countdownValue <= 0) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+                calibrationStatusElement.textContent = "Capturing pose...";
+                captureForCalibration = true; // Signal onResults to capture the next frame
+                // Keep the overlay visible until calibration is confirmed in onResults
+            }
+        }, 1000);
+
+    } catch (error) {
+        console.error("Error starting camera for calibration:", error);
+        calibrationStatusElement.textContent = "Error starting camera. Please check permissions.";
+        isCalibrating = false;
+        calibrateButton.disabled = false;
+        recalibrateButton.disabled = false;
+        countdownElement.style.display = 'none';
+    }
+}
+
+// Perform calibration using captured results
+function calibrate(results) {
+    if (!results || !results.poseLandmarks || results.poseLandmarks.length < 13) {
+        calibrationStatusElement.textContent = "Calibration failed: Could not detect full body pose. Please try again.";
+        console.warn("Calibration failed: Insufficient pose landmarks.", results?.poseLandmarks?.length);
+        // Allow user to try again
+        isCalibrating = false;
+        captureForCalibration = false;
+        calibrateButton.disabled = false;
+        recalibrateButton.disabled = false;
+        countdownElement.style.display = 'none'; // Hide countdown
+        return false; // Indicate failure
+    }
+
+    const shoulderLeft = results.poseLandmarks[11];
+    const shoulderRight = results.poseLandmarks[12];
+
+    // Use 2D distance on the capture frame as the reference
+    const refWidth = calculateDistance2D(shoulderLeft, shoulderRight);
+
+    if (refWidth < 0.01) { // Check for very small or zero width
+        calibrationStatusElement.textContent = "Calibration failed: Shoulders too close or not detected properly. Please reposition and try again.";
+        console.warn("Calibration failed: Invalid shoulder width.", refWidth);
+        // Allow user to try again
+        isCalibrating = false;
+        captureForCalibration = false;
+        calibrateButton.disabled = false;
+        recalibrateButton.disabled = false;
+        countdownElement.style.display = 'none'; // Hide countdown
+        return false; // Indicate failure
+    }
+
+    calibrationData = {
+        referenceShoulderWidth: refWidth
+    };
+    console.log("Calibration successful. Reference shoulder width:", refWidth);
+    calibrationStatusElement.textContent = "Calibration Successful!";
+    return true; // Indicate success
+}
+
+// Initialize Three.js scene (called once during initializeApp)
 function initThreeJS() {
     // Create scene
     scene = new THREE.Scene();
-    // scene.background = new THREE.Color(config.threeJS.background);
+    // scene.background = new THREE.Color(config.threeJS.background); // Skybox overrides this
 
     // Create camera
     camera3D = new THREE.PerspectiveCamera(75, sceneContainer.clientWidth / sceneContainer.clientHeight, 0.1, 1000);
-    camera3D.position.set(0, 0.5, 4); 
-    // camera3D.lookAt(0, -0.5, 0); 
+    camera3D.position.set(0, 0.5, 4);
+    // camera3D.lookAt(0, -0.5, 0); // OrbitControls manages looking
 
     // Create renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -99,14 +232,14 @@ function initThreeJS() {
 
     // Initialize OrbitControls
     controls = new OrbitControls(camera3D, renderer.domElement);
-    controls.target.set(0, 0, 0); 
-    controls.enableDamping = true; 
+    controls.target.set(0, 0, 0); // Look at the center origin
+    controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.screenSpacePanning = false; 
+    controls.screenSpacePanning = false;
     controls.minDistance = 1;
     controls.maxDistance = 20;
-    controls.maxPolarAngle = Math.PI / 1.8; 
-    controls.update(); 
+    controls.maxPolarAngle = Math.PI / 1.8; // Prevent looking directly down/up too far
+    controls.update();
 
     // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -142,11 +275,11 @@ function initThreeJS() {
     terrainMesh.receiveShadow = true;
     scene.add(terrainMesh);
 
-    // Initialize avatar meshes
-    faceMesh = initFaceTracking(scene, config); 
-    bodyMesh = initBodyTracking(scene, config); 
-    leftHandMesh = initHandTracking(scene, config, 'left');
-    rightHandMesh = initHandTracking(scene, config, 'right');
+    // Initialize avatar meshes (pass base scale)
+    faceMesh = initFaceTracking(scene, config, BASE_SCALE_FACTOR);
+    bodyMesh = initBodyTracking(scene, config, BASE_SCALE_FACTOR);
+    leftHandMesh = initHandTracking(scene, config, 'left', BASE_SCALE_FACTOR);
+    rightHandMesh = initHandTracking(scene, config, 'right', BASE_SCALE_FACTOR);
 
     function enableShadows(meshGroup) {
         if (!meshGroup) return;
@@ -154,47 +287,62 @@ function initThreeJS() {
         Object.values(meshGroup.joints || {}).forEach(mesh => mesh.castShadow = true);
         Object.values(meshGroup.connections || {}).forEach(mesh => mesh.castShadow = true);
         Object.values(meshGroup.bones || {}).forEach(mesh => mesh.castShadow = true);
-        if (meshGroup.neckBone) meshGroup.neckBone.castShadow = true; 
+        if (meshGroup.neckBone) meshGroup.neckBone.castShadow = true;
     }
     enableShadows(bodyMesh);
     enableShadows(faceMesh);
     enableShadows(leftHandMesh);
     enableShadows(rightHandMesh);
 
-    // Handle window resize
+    // Handle window resize for Three.js canvas
     window.addEventListener('resize', () => {
-        camera3D.aspect = sceneContainer.clientWidth / sceneContainer.clientHeight;
-        camera3D.updateProjectionMatrix();
-        renderer.setSize(sceneContainer.clientWidth, sceneContainer.clientHeight);
+        if (!renderer || !camera3D) return; // Don't resize if not initialized
+        const width = sceneContainer.clientWidth;
+        const height = sceneContainer.clientHeight;
+        if (width > 0 && height > 0) {
+            camera3D.aspect = width / height;
+            camera3D.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
     });
 
     // Start animation loop
     animate();
 }
 
-// Animation loop
+// Animation loop for Three.js
 function animate() {
     requestAnimationFrame(animate);
-    controls.update(); 
-    renderer.render(scene, camera3D);
+    if (controls) controls.update(); // Update orbit controls
+    if (renderer && scene && camera3D) { // Check if initialized
+        renderer.render(scene, camera3D);
+    }
 }
 
-// Handle window resize
+// Handle window resize for webcam canvas
 window.addEventListener('resize', resizeCanvasToDisplaySize);
 
 function resizeCanvasToDisplaySize() {
-    const vidWidth = video.clientWidth;
-    const vidHeight = video.clientHeight;
-    
-    canvas.width = vidWidth;
-    canvas.height = vidHeight;
+    if (!video || !canvas) return;
+    // Use video intrinsic dimensions once loaded, or client dimensions otherwise
+    const displayWidth = video.clientWidth;
+    const displayHeight = video.clientHeight;
+
+    if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+        canvas.width = displayWidth;
+        canvas.height = displayHeight;
+        console.log(`Resized output canvas to ${displayWidth}x${displayHeight}`);
+    }
 }
 
 // Update the 3D scene with new pose data
-function updateThreeJSPose(results) {
-    // Update face first, as body might depend on its position
+function updateThreeJSPose(results, dynamicScale) {
+    // Ensure dynamicScale is a valid number, default to 1.0 if not
+    const scale = (typeof dynamicScale === 'number' && isFinite(dynamicScale)) ? dynamicScale : 1.0;
+
+    // Update face first
     if (showFaceCheckbox.checked && results.faceLandmarks) {
-        updateFaceMesh(results.faceLandmarks, faceMesh, updateBone);
+        updateFaceMesh(results.faceLandmarks, faceMesh, updateBone, scale); // Pass scale
     } else {
         hideFaceMesh(faceMesh);
     }
@@ -202,13 +350,14 @@ function updateThreeJSPose(results) {
     // Update body pose
     if (showBodyCheckbox.checked && results.poseLandmarks) {
         updateBodyMesh(
-            results.poseLandmarks, 
-            bodyMesh, 
+            results.poseLandmarks,
+            bodyMesh,
             updateBone,
             results.leftHandLandmarks,
             results.rightHandLandmarks,
-            results.faceLandmarks, 
-            faceMesh 
+            results.faceLandmarks,
+            faceMesh,
+            scale // Pass scale
         );
     } else {
         hideBodyMesh(bodyMesh);
@@ -216,16 +365,13 @@ function updateThreeJSPose(results) {
 
     // Update hands
     if (showHandsCheckbox.checked) {
-        // Update left hand
         if (results.leftHandLandmarks) {
-            updateHandMesh(results.leftHandLandmarks, leftHandMesh, updateBone);
+            updateHandMesh(results.leftHandLandmarks, leftHandMesh, updateBone, scale); // Pass scale
         } else {
             hideHandMesh(leftHandMesh);
         }
-        
-        // Update right hand
         if (results.rightHandLandmarks) {
-            updateHandMesh(results.rightHandLandmarks, rightHandMesh, updateBone);
+            updateHandMesh(results.rightHandLandmarks, rightHandMesh, updateBone, scale); // Pass scale
         } else {
             hideHandMesh(rightHandMesh);
         }
@@ -237,94 +383,146 @@ function updateThreeJSPose(results) {
 
 // Process and visualize the tracking results
 function onResults(results) {
-    // Clear the canvas
+    // Ensure canvas context is valid
+    if (!ctx || canvas.width === 0 || canvas.height === 0) {
+        // console.warn("Canvas not ready for drawing.");
+        return;
+    }
+    // Ensure video dimensions are available for canvas sizing
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+        resizeCanvasToDisplaySize(); // Adjust canvas size if video size changed
+    }
+
+    // Handle calibration capture
+    if (isCalibrating && captureForCalibration) {
+        captureForCalibration = false; // Only capture once
+        if (calibrate(results)) { // Perform calibration
+            // Calibration successful
+            isCalibrated = true;
+            isCalibrating = false;
+            statusElement.textContent = "Tracking active";
+            // Hide overlay, show main content
+            calibrationOverlay.classList.add('hidden');
+            mainContentElement.classList.remove('hidden');
+            calibrateButton.disabled = false; // Re-enable buttons
+            recalibrateButton.disabled = false;
+            // Optional: Brief success message then clear
+            setTimeout(() => { calibrationStatusElement.textContent = ""; }, 2000);
+
+        } else {
+            // Calibration failed - UI handled within calibrate()
+            // Keep overlay visible, main content hidden
+            isCalibrating = false; // Reset calibrating flag
+            calibrateButton.disabled = false;
+            recalibrateButton.disabled = false;
+            // Don't proceed with drawing or updating 3D pose
+            return;
+        }
+    }
+
+    // --- Regular Processing ---
+    // Don't process further if not calibrated
+    if (!isCalibrated) {
+        // Clear canvas if we were previously drawing but lost calibration somehow
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Optionally hide 3D model parts if calibration is lost?
+        // hideBodyMesh(bodyMesh); hideFaceMesh(faceMesh); etc.
+        return;
+    }
+
+    // Calculate dynamic scale based on current shoulder width vs calibrated width
+    let dynamicScale = 1.0;
+    if (calibrationData && results.poseLandmarks && results.poseLandmarks.length > 12) {
+        const currentShoulderWidth = calculateDistance2D(results.poseLandmarks[11], results.poseLandmarks[12]);
+        if (calibrationData.referenceShoulderWidth > 0.01 && currentShoulderWidth > 0.01) {
+            // Scale = current / reference. If current is smaller, scale is < 1 (further away)
+            dynamicScale = currentShoulderWidth / calibrationData.referenceShoulderWidth;
+            // Clamp scale to avoid extreme values? e.g., dynamicScale = Math.max(0.3, Math.min(2.0, dynamicScale));
+        }
+    }
+
+    // --- Update 3D Visualization ---
+    try {
+        // Only update if we have the necessary landmarks
+        if (results.poseLandmarks) {
+            updateThreeJSPose(results, dynamicScale);
+        } else {
+            // If pose landmarks are lost, hide the entire model?
+            hideBodyMesh(bodyMesh);
+            hideFaceMesh(faceMesh);
+            hideHandMesh(leftHandMesh);
+            hideHandMesh(rightHandMesh);
+        }
+    } catch (error) {
+        console.error("Error updating 3D pose:", error);
+        statusElement.textContent = "Error updating 3D view.";
+        // Consider hiding the model or showing an error state in 3D?
+    }
+
+    // --- Draw 2D Overlay on Webcam Feed ---
+    ctx.save(); // Save context state
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Only draw if we have results
-    if (!results || !results.poseLandmarks) return; 
-    
-    // Update 3D visualization with the new pose data
-    updateThreeJSPose(results);
-    
-    // Draw body pose if enabled (on the small webcam feed)
+
+    // Draw body pose if enabled
     if (showBodyCheckbox.checked && results.poseLandmarks) {
         let activePoseConnections = [...POSE_CONNECTIONS];
-        if (showHandsCheckbox.checked) {
-            const wristToFingerLeft = [[15, 17], [15, 19], [15, 21]];
-            const wristToFingerRight = [[16, 18], [16, 20], [16, 22]];
-            activePoseConnections = activePoseConnections.filter(conn => {
-                 const isLeftWf = results.leftHandLandmarks && wristToFingerLeft.some(wf => (wf[0] === conn[0] && wf[1] === conn[1]) || (wf[0] === conn[1] && wf[1] === conn[0]));
-                 const isRightWf = results.rightHandLandmarks && wristToFingerRight.some(wf => (wf[0] === conn[0] && wf[1] === conn[1]) || (wf[0] === conn[1] && wf[1] === conn[0]));
-                 return !isLeftWf && !isRightWf;
-            });
-        }
-
         drawConnectors(
             ctx, results.poseLandmarks, activePoseConnections,
-            {color: config.colors.body.connectors}
+            { color: config.colors.body.connectors, lineWidth: 2 } // Thinner lines?
         );
 
+        // Optionally draw fewer landmarks
         const landmarksToDraw = {};
-        const leftFingerBaseIndices = [17, 19, 21];
-        const rightFingerBaseIndices = [18, 20, 22];
-        const leftHandActive = showHandsCheckbox.checked && results.leftHandLandmarks;
-        const rightHandActive = showHandsCheckbox.checked && results.rightHandLandmarks;
-
         results.poseLandmarks.forEach((lm, index) => {
-            if (index < 11) return; 
-            if (leftHandActive && leftFingerBaseIndices.includes(index)) return; 
-            if (rightHandActive && rightFingerBaseIndices.includes(index)) return; 
-            if (leftHandActive && index === 15) return;
-            if (rightHandActive && index === 16) return;
-
-            landmarksToDraw[index] = lm;
+            // Example: Draw only major joints, skip face (0-10) and maybe fingers if hands active
+            if (index > 10) { // Skip face
+                // Further filtering if needed based on hand visibility
+                landmarksToDraw[index] = lm;
+            }
         });
 
         drawLandmarks(
             ctx, Object.values(landmarksToDraw),
-            {color: config.colors.body.landmarks, radius: config.pointSizes.body}
+            { color: config.colors.body.landmarks, radius: config.pointSizes.body }
         );
     }
-    
-    // Draw face if enabled (on the small webcam feed)
-    if (showFaceCheckbox.checked) {
-        if (results.faceLandmarks) {
-            drawConnectors(
-                ctx, results.faceLandmarks, FACEMESH_CONTOURS,
-                {color: config.colors.face.connectors}
-            );
-        }
+
+    // Draw face if enabled
+    if (showFaceCheckbox.checked && results.faceLandmarks) {
+        drawConnectors(
+            ctx, results.faceLandmarks, FACEMESH_CONTOURS, // Use contours for cleaner look
+            { color: config.colors.face.connectors, lineWidth: 1 }
+        );
     }
-    
-    // Draw hands if enabled (on the small webcam feed)
+
+    // Draw hands if enabled
     if (showHandsCheckbox.checked) {
-        // Left hand
         if (results.leftHandLandmarks) {
-            drawConnectors(
-                ctx, results.leftHandLandmarks, HAND_CONNECTIONS,
-                {color: config.colors.leftHand.connectors}
-            );
-            
-            drawLandmarks(
-                ctx, results.leftHandLandmarks,
-                {color: config.colors.leftHand.landmarks, radius: config.pointSizes.hand}
-            );
+            drawConnectors(ctx, results.leftHandLandmarks, HAND_CONNECTIONS, { color: config.colors.leftHand.connectors, lineWidth: 2 });
+            drawLandmarks(ctx, results.leftHandLandmarks, { color: config.colors.leftHand.landmarks, radius: config.pointSizes.hand });
         }
-        
-        // Right hand
         if (results.rightHandLandmarks) {
-            drawConnectors(
-                ctx, results.rightHandLandmarks, HAND_CONNECTIONS,
-                {color: config.colors.rightHand.connectors}
-            );
-            
-            drawLandmarks(
-                ctx, results.rightHandLandmarks,
-                {color: config.colors.rightHand.landmarks, radius: config.pointSizes.hand}
-            );
+            drawConnectors(ctx, results.rightHandLandmarks, HAND_CONNECTIONS, { color: config.colors.rightHand.connectors, lineWidth: 2 });
+            drawLandmarks(ctx, results.rightHandLandmarks, { color: config.colors.rightHand.landmarks, radius: config.pointSizes.hand });
         }
     }
+
+    ctx.restore(); // Restore context state
 }
 
 // Initialize the app when the page loads
-window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('DOMContentLoaded', initializeApp);
+
+// Graceful shutdown/cleanup
+window.addEventListener('beforeunload', () => {
+    if (camera) {
+        camera.stop();
+    }
+    if (holistic) {
+        holistic.close();
+    }
+    if (countdownTimer) {
+        clearInterval(countdownTimer);
+    }
+    // Optional: Remove event listeners if needed, though usually handled by browser unload
+});

@@ -17,14 +17,15 @@ export const HAND_CONNECTIONS = [
     // Pinky
     [0, 17], [17, 18], [18, 19], [19, 20],
     // Palm
-    [0, 17], [5, 9], [9, 13], [13, 17]
+    // [0, 17], [5, 9], [9, 13], [13, 17] // Optional palm connections
 ];
 
 // Initialize hand tracking
-export function initHandTracking(scene, config, side) {
+export function initHandTracking(scene, config, side, baseScaleFactor) { 
     const handMesh = {
         landmarks: {},
-        connections: {}
+        connections: {},
+        baseScaleFactor: baseScaleFactor || 2.5 
     };
 
     const isLeft = side === 'left';
@@ -64,62 +65,59 @@ export function initHandTracking(scene, config, side) {
         scene.add(bone);
         bone.visible = false;
         handMesh.connections[connection.join('-')] = bone;
+        handMesh.connections[`${connection[1]}-${connection[0]}`] = bone; 
     }
 
     return handMesh;
 }
 
 // Update hand mesh with new landmark data
-export function updateHandMesh(landmarks, handMesh, updateBoneFn) {
-    const scaleFactor = 2.5; // Unified scaling factor
-    const yOffset = 0.8; // Vertical offset to move the hand up (same as body/face)
+export function updateHandMesh(landmarks, handMesh, updateBoneFn, dynamicScale) { 
+    const scaleFactor = handMesh.baseScaleFactor * dynamicScale; 
+    const yOffset = 0.8; 
 
     // Update hand landmarks
     for (let i = 0; i < landmarks.length; i++) {
-        if (!handMesh.landmarks[i]) continue; // Should not happen if init is correct
+        if (!handMesh.landmarks[i]) continue; 
 
         const landmark = landmarks[i];
         const joint = handMesh.landmarks[i];
 
-        // Position hand landmarks in 3D space, apply offset
         joint.position.set(
             -(landmark.x - 0.5) * scaleFactor,
-            (landmark.y - 0.5) * -scaleFactor + yOffset, // Apply offset
-            (landmark.z * scaleFactor) // Apply consistent scaling
+            (landmark.y - 0.5) * -scaleFactor + yOffset, 
+            (landmark.z * scaleFactor) 
         );
 
-        // Assume hand landmarks are always visible if detected
         joint.visible = true;
     }
 
     // Update hand connections
     for (const connection of HAND_CONNECTIONS) {
         const [i, j] = connection;
-        // Ensure bone and joints exist
-        if (!handMesh.connections[connection.join('-')] || !handMesh.landmarks[i] || !handMesh.landmarks[j]) continue;
+        const connectionKey = connection.join('-');
+        if (!handMesh.connections[connectionKey] || !handMesh.landmarks[i] || !handMesh.landmarks[j]) continue;
 
-        const bone = handMesh.connections[connection.join('-')];
+        const bone = handMesh.connections[connectionKey];
         const jointA = handMesh.landmarks[i];
         const jointB = handMesh.landmarks[j];
 
-        // Update bone if joints are visible (which they should be if hand is detected)
         if (jointA.visible && jointB.visible) {
             updateBoneFn(bone, jointA.position, jointB.position);
             bone.visible = true;
         } else {
-            bone.visible = false; // Should not happen typically if hand is detected
+            bone.visible = false; 
         }
     }
 }
 
 // Hide hand mesh
 export function hideHandMesh(handMesh) {
-    // Hide all hand landmarks and connections
     for (const key in handMesh.landmarks) {
-        handMesh.landmarks[key].visible = false;
+        if(handMesh.landmarks[key]) handMesh.landmarks[key].visible = false;
     }
-    
+
     for (const key in handMesh.connections) {
-        handMesh.connections[key].visible = false;
+        if(handMesh.connections[key]) handMesh.connections[key].visible = false;
     }
 }

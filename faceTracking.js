@@ -27,35 +27,36 @@ export const FACEMESH_CONTOURS = [
 ];
 
 // Initialize face tracking
-export function initFaceTracking(scene, config) {
+export function initFaceTracking(scene, config, baseScaleFactor) { 
     const faceMesh = {
         landmarks: {},
-        connections: {}
+        connections: {},
+        baseScaleFactor: baseScaleFactor || 2.5 
     };
-    
+
     const faceMaterial = new THREE.MeshStandardMaterial({ 
         color: config.threeJS.faceColor,
         emissive: config.threeJS.faceColor,
         emissiveIntensity: 0.3
     });
-    
+
     const jointGeometry = new THREE.SphereGeometry(config.threeJS.jointRadius * 0.5, 8, 8);
-    
+
     // We'll add key face landmarks
-    for (let i = 0; i < 468; i++) {
+    for (let i = 0; i < 468; i++) { 
         const joint = new THREE.Mesh(jointGeometry, faceMaterial);
         joint.visible = false;
         scene.add(joint);
         faceMesh.landmarks[i] = joint;
     }
-    
+
     // Create face connections for important contours
     const faceConnectorMaterial = new THREE.MeshStandardMaterial({ 
         color: config.threeJS.faceColor,
         emissive: config.threeJS.faceColor,
         emissiveIntensity: 0.2
     });
-    
+
     for (const connection of FACEMESH_CONTOURS) {
         const geometry = new THREE.CylinderGeometry(
             config.threeJS.boneRadius * 0.4, 
@@ -67,46 +68,47 @@ export function initFaceTracking(scene, config) {
         scene.add(bone);
         bone.visible = false;
         faceMesh.connections[connection.join('-')] = bone;
+        faceMesh.connections[`${connection[1]}-${connection[0]}`] = bone; 
     }
-    
+
     return faceMesh;
 }
 
 // Update face mesh with new landmark data
-export function updateFaceMesh(landmarks, faceMesh, updateBoneFn) {
-    const scaleFactor = 2.5; // Unified scaling factor
-    const yOffset = 0.8; // Vertical offset to move the face up (same as body)
+export function updateFaceMesh(landmarks, faceMesh, updateBoneFn, dynamicScale) { 
+    const scaleFactor = faceMesh.baseScaleFactor * dynamicScale; 
+    const yOffset = 0.8; 
 
     // Update face landmarks
     for (let i = 0; i < landmarks.length; i++) {
-        if (!faceMesh.landmarks[i]) continue; // Skip if landmark doesn't exist in our mesh
+        if (!faceMesh.landmarks[i]) continue; 
 
         const landmark = landmarks[i];
         const joint = faceMesh.landmarks[i];
 
-        // Position face landmarks in 3D space, apply offset
+        // Position face landmarks in 3D space, apply offset and dynamic scale
         joint.position.set(
             -(landmark.x - 0.5) * scaleFactor,
-            (landmark.y - 0.5) * -scaleFactor + yOffset, // Apply offset
-            (landmark.z * scaleFactor) // Apply consistent scaling
+            (landmark.y - 0.5) * -scaleFactor + yOffset, 
+            (landmark.z * scaleFactor) 
         );
 
-        // Assume face landmarks are always visible if detected
+        // Assume face landmarks are always visible if detected 
         joint.visible = true;
     }
 
     // Update face contour connections
     for (const connection of FACEMESH_CONTOURS) {
         const [i, j] = connection;
-        if (!faceMesh.connections[connection.join('-')] ||
-            !faceMesh.landmarks[i] ||
-            !faceMesh.landmarks[j]) continue;
+        const connectionKey = connection.join('-');
+        // Ensure bone and joints exist (check both landmark indices)
+        if (!faceMesh.connections[connectionKey] || !faceMesh.landmarks[i] || !faceMesh.landmarks[j]) continue;
 
-        const bone = faceMesh.connections[connection.join('-')];
+        const bone = faceMesh.connections[connectionKey];
         const jointA = faceMesh.landmarks[i];
         const jointB = faceMesh.landmarks[j];
 
-        // Only show bones if both connected joints are visible (which they should be if face is detected)
+        // Only show bones if both connected joints are visible 
         if(jointA.visible && jointB.visible) {
              updateBoneFn(bone, jointA.position, jointB.position);
              bone.visible = true;
@@ -120,10 +122,10 @@ export function updateFaceMesh(landmarks, faceMesh, updateBoneFn) {
 export function hideFaceMesh(faceMesh) {
     // Hide all face landmarks and connections
     for (const key in faceMesh.landmarks) {
-        faceMesh.landmarks[key].visible = false;
+         if (faceMesh.landmarks[key]) faceMesh.landmarks[key].visible = false;
     }
-    
+
     for (const key in faceMesh.connections) {
-        faceMesh.connections[key].visible = false;
+        if (faceMesh.connections[key]) faceMesh.connections[key].visible = false;
     }
 }

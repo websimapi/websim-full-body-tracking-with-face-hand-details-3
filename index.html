@@ -22,27 +22,39 @@
 <body>
     <div class="container">
         <h1>3D Body Tracking</h1>
-        <div id="scene-container"></div>
-        <div class="webcam-container">
-            <video id="webcam" autoplay playsinline></video>
-            <canvas id="output-canvas"></canvas>
-        </div>
-        <div class="controls">
-            <div class="toggle-group">
-                <label>
-                    <input type="checkbox" id="show-body" checked>
-                    Body Tracking
-                </label>
-                <label>
-                    <input type="checkbox" id="show-face" checked>
-                    Face Tracking
-                </label>
-                <label>
-                    <input type="checkbox" id="show-hands" checked>
-                    Hand Tracking
-                </label>
+        <div id="calibration-overlay" class="calibration-overlay">
+            <div class="calibration-content">
+                <h2>Calibration Required</h2>
+                <p>Please stand facing the camera in a T-pose with your elbows bent 90 degrees upwards (hands near your face). Hold this pose during the countdown.</p>
+                <div id="countdown">5</div>
+                <button id="calibrate-button">Start Calibration</button>
+                <p id="calibration-status" class="calibration-status"></p>
             </div>
-            <div class="status" id="status">Loading models...</div>
+        </div>
+        <div id="main-content" class="hidden">
+            <div id="scene-container"></div>
+            <div class="webcam-container">
+                <video id="webcam" autoplay playsinline></video>
+                <canvas id="output-canvas"></canvas>
+            </div>
+            <div class="controls">
+                <div class="toggle-group">
+                    <label>
+                        <input type="checkbox" id="show-body" checked>
+                        Body Tracking
+                    </label>
+                    <label>
+                        <input type="checkbox" id="show-face" checked>
+                        Face Tracking
+                    </label>
+                    <label>
+                        <input type="checkbox" id="show-hands" checked>
+                        Hand Tracking
+                    </label>
+                </div>
+                <div class="status" id="status">Loading models...</div>
+                <button id="recalibrate-button" class="calibrate-btn">Recalibrate</button>
+            </div>
         </div>
     </div>
     <script type="module" src="app.js"></script>
