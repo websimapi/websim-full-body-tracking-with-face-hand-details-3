@@ -2,8 +2,7 @@
  * Hand tracking module for 3D visualization
  */
 
-// Assume THREE is globally available via script tag
-const THREE = window.THREE;
+import * as THREE from 'three'; // Import Three.js as a module
 
 // Constants for hand landmark connections
 export const HAND_CONNECTIONS = [

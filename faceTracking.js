@@ -2,8 +2,7 @@
  * Face tracking module for 3D visualization
  */
 
-// Assume THREE is globally available via script tag
-const THREE = window.THREE;
+import * as THREE from 'three'; // Import Three.js as a module
 
 // Constants for face mesh visualizations
 export const FACEMESH_TESSELATION = [

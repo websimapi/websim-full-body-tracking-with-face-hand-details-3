@@ -1,9 +1,7 @@
 /**
  * Utility functions for 3D visualization
  */
-
-// Assume THREE is globally available via script tag
-const THREE = window.THREE;
+import * as THREE from 'three'; // Import Three.js as a module
 
 // Create a bone (cylinder) between joints
 export function createBone(material, radius) {

@@ -1,9 +1,7 @@
 /**
  * Body tracking module for 3D visualization
  */
-
-// Assume THREE is globally available via script tag
-const THREE = window.THREE;
+import * as THREE from 'three'; 
 
 // Constants for body landmark connections
 export const POSE_CONNECTIONS = [
