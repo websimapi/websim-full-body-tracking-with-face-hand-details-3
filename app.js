@@ -4,6 +4,7 @@ import { initFaceTracking, updateFaceMesh, hideFaceMesh, FACEMESH_TESSELATION, F
 import { initHandTracking, updateHandMesh, hideHandMesh, HAND_CONNECTIONS } from './handTracking.js';
 import { createBone, updateBone, createTerrain } from './utils.js';
 import * as THREE from 'three'; // Import Three.js as a module
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'; // Import OrbitControls
 
 // Global references to MediaPipe objects now loaded via script tags
 const Holistic = window.Holistic;
@@ -28,7 +29,7 @@ let holistic;
 let camera;
 
 // Three.js objects
-let scene, renderer, camera3D;
+let scene, renderer, camera3D, controls; 
 let bodyMesh = {};
 let faceMesh = {};
 let leftHandMesh = {};
@@ -87,14 +88,25 @@ function initThreeJS() {
 
     // Create camera
     camera3D = new THREE.PerspectiveCamera(75, sceneContainer.clientWidth / sceneContainer.clientHeight, 0.1, 1000);
-    camera3D.position.set(0, 0, 3);
-    camera3D.lookAt(0, -0.5, 0);
+    camera3D.position.set(0, 0.5, 4); 
+    // camera3D.lookAt(0, -0.5, 0); 
 
     // Create renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(sceneContainer.clientWidth, sceneContainer.clientHeight);
     renderer.shadowMap.enabled = true;
     sceneContainer.appendChild(renderer.domElement);
+
+    // Initialize OrbitControls
+    controls = new OrbitControls(camera3D, renderer.domElement);
+    controls.target.set(0, 0, 0); 
+    controls.enableDamping = true; 
+    controls.dampingFactor = 0.05;
+    controls.screenSpacePanning = false; 
+    controls.minDistance = 1;
+    controls.maxDistance = 20;
+    controls.maxPolarAngle = Math.PI / 1.8; 
+    controls.update(); 
 
     // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -162,6 +174,7 @@ function initThreeJS() {
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
+    controls.update(); 
     renderer.render(scene, camera3D);
 }
 
