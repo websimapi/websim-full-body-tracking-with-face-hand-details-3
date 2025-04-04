@@ -17,15 +17,14 @@ export const HAND_CONNECTIONS = [
     // Pinky
     [0, 17], [17, 18], [18, 19], [19, 20],
     // Palm
-    // [0, 17], [5, 9], [9, 13], [13, 17] // Optional palm connections
+    [0, 17], [5, 9], [9, 13], [13, 17]
 ];
 
 // Initialize hand tracking
-export function initHandTracking(scene, config, side, baseScaleFactor) { 
+export function initHandTracking(scene, config, side) {
     const handMesh = {
         landmarks: {},
-        connections: {},
-        baseScaleFactor: baseScaleFactor || 2.5 
+        connections: {}
     };
 
     const isLeft = side === 'left';
@@ -65,40 +64,51 @@ export function initHandTracking(scene, config, side, baseScaleFactor) {
         scene.add(bone);
         bone.visible = false;
         handMesh.connections[connection.join('-')] = bone;
-        handMesh.connections[`${connection[1]}-${connection[0]}`] = bone; 
     }
 
     return handMesh;
 }
 
+// Helper vector for calculations
+const _initialHandJointPos = new THREE.Vector3();
+
 // Update hand mesh with new landmark data
-export function updateHandMesh(landmarks, handMesh, updateBoneFn, dynamicScale) { 
-    const scaleFactor = handMesh.baseScaleFactor * dynamicScale; 
-    const yOffset = 0.8; 
+export function updateHandMesh(landmarks, handMesh, updateBoneFn, globalOffset, globalScale) {
+    const localScaleFactor = 2.5;
+    const localYOffset = 0.8;
 
     // Update hand landmarks
     for (let i = 0; i < landmarks.length; i++) {
-        if (!handMesh.landmarks[i]) continue; 
+        if (!handMesh.landmarks[i]) continue;
 
         const landmark = landmarks[i];
         const joint = handMesh.landmarks[i];
 
-        joint.position.set(
-            -(landmark.x - 0.5) * scaleFactor,
-            (landmark.y - 0.5) * -scaleFactor + yOffset, 
-            (landmark.z * scaleFactor) 
+        // 1. Calculate position based on local settings
+        _initialHandJointPos.set(
+            -(landmark.x - 0.5) * localScaleFactor,
+            (landmark.y - 0.5) * -localScaleFactor + localYOffset,
+            landmark.z * localScaleFactor
         );
+
+        // 2. Apply global scale (relative to conceptual center)
+        const centerPoint = new THREE.Vector3(0, localYOffset, 0);
+        _initialHandJointPos.sub(centerPoint);
+        _initialHandJointPos.multiplyScalar(globalScale);
+        _initialHandJointPos.add(centerPoint);
+
+        // 3. Apply global offset
+        joint.position.copy(_initialHandJointPos).add(globalOffset);
 
         joint.visible = true;
     }
 
-    // Update hand connections
+    // Update hand connections (bones inherit transforms from joints)
     for (const connection of HAND_CONNECTIONS) {
         const [i, j] = connection;
-        const connectionKey = connection.join('-');
-        if (!handMesh.connections[connectionKey] || !handMesh.landmarks[i] || !handMesh.landmarks[j]) continue;
+        if (!handMesh.connections[connection.join('-')] || !handMesh.landmarks[i] || !handMesh.landmarks[j]) continue;
 
-        const bone = handMesh.connections[connectionKey];
+        const bone = handMesh.connections[connection.join('-')];
         const jointA = handMesh.landmarks[i];
         const jointB = handMesh.landmarks[j];
 
@@ -106,18 +116,19 @@ export function updateHandMesh(landmarks, handMesh, updateBoneFn, dynamicScale) 
             updateBoneFn(bone, jointA.position, jointB.position);
             bone.visible = true;
         } else {
-            bone.visible = false; 
+            bone.visible = false;
         }
     }
 }
 
 // Hide hand mesh
 export function hideHandMesh(handMesh) {
+    // Hide all hand landmarks and connections
     for (const key in handMesh.landmarks) {
-        if(handMesh.landmarks[key]) handMesh.landmarks[key].visible = false;
+        handMesh.landmarks[key].visible = false;
     }
-
+    
     for (const key in handMesh.connections) {
-        if(handMesh.connections[key]) handMesh.connections[key].visible = false;
+        handMesh.connections[key].visible = false;
     }
 }

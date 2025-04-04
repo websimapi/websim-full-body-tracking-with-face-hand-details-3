@@ -22,42 +22,60 @@
 <body>
     <div class="container">
         <h1>3D Body Tracking</h1>
-        <div id="calibration-overlay" class="calibration-overlay">
-            <div class="calibration-content">
-                <h2>Calibration Required</h2>
-                <p>Please stand facing the camera in a T-pose with your elbows bent 90 degrees upwards (hands near your face). Hold this pose during the countdown.</p>
-                <div id="countdown">5</div>
-                <button id="calibrate-button">Start Calibration</button>
-                <p id="calibration-status" class="calibration-status"></p>
-            </div>
+        <div id="scene-container"></div>
+        <div class="webcam-container">
+            <video id="webcam" autoplay playsinline></video>
+            <canvas id="output-canvas"></canvas>
         </div>
-        <div id="main-content" class="hidden">
-            <div id="scene-container"></div>
-            <div class="webcam-container">
-                <video id="webcam" autoplay playsinline></video>
-                <canvas id="output-canvas"></canvas>
+        <div class="controls">
+            <div class="toggle-group">
+                <label>
+                    <input type="checkbox" id="show-body" checked>
+                    Body Tracking
+                </label>
+                <label>
+                    <input type="checkbox" id="show-face" checked>
+                    Face Tracking
+                </label>
+                <label>
+                    <input type="checkbox" id="show-hands" checked>
+                    Hand Tracking
+                </label>
             </div>
-            <div class="controls">
-                <div class="toggle-group">
-                    <label>
-                        <input type="checkbox" id="show-body" checked>
-                        Body Tracking
-                    </label>
-                    <label>
-                        <input type="checkbox" id="show-face" checked>
-                        Face Tracking
-                    </label>
-                    <label>
-                        <input type="checkbox" id="show-hands" checked>
-                        Hand Tracking
-                    </label>
+            <div class="status" id="status">Loading models...</div>
+        </div>
+
+        <!-- Debug Menu -->
+        <div class="debug-menu" id="debug-menu">
+            <h2>Debug Controls</h2>
+            <div class="debug-controls-grid">
+                <div class="control-item">
+                    <label for="global-offset-x">Global Offset X:</label>
+                    <input type="range" id="global-offset-x" min="-2" max="2" step="0.05" value="0">
+                    <span id="global-offset-x-value">0.00</span>
                 </div>
-                <div class="status" id="status">Loading models...</div>
-                <button id="recalibrate-button" class="calibrate-btn">Recalibrate</button>
+                <div class="control-item">
+                    <label for="global-offset-y">Global Offset Y:</label>
+                    <input type="range" id="global-offset-y" min="-2" max="2" step="0.05" value="0">
+                    <span id="global-offset-y-value">0.00</span>
+                </div>
+                <div class="control-item">
+                    <label for="global-offset-z">Global Offset Z:</label>
+                    <input type="range" id="global-offset-z" min="-2" max="2" step="0.05" value="0">
+                    <span id="global-offset-z-value">0.00</span>
+                </div>
+                <div class="control-item">
+                    <label for="global-scale">Global Scale:</label>
+                    <input type="range" id="global-scale" min="0.1" max="3" step="0.05" value="1">
+                    <span id="global-scale-value">1.00</span>
+                </div>
+            </div>
+            <div class="debug-readouts">
+                <p>Camera Position: <span id="cam-pos">N/A</span></p>
+                <p>Camera Target: <span id="cam-target">N/A</span></p>
             </div>
         </div>
     </div>
-    <script type="module" src="calibration.js"></script> 
     <script type="module" src="app.js"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>

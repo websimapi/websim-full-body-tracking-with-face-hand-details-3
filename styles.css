@@ -117,98 +117,69 @@ input[type="checkbox"] {
     color: #03a9f4;
 }
 
-.calibration-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
+.debug-menu {
     width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 100;
-    text-align: center;
+    max-width: 800px;
+    background-color: #2a2a2a; 
     padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    margin-top: 15px;
+    border: 1px solid #444;
 }
 
-.calibration-content {
-    background-color: #1e1e1e;
-    padding: 30px 40px;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.7);
-    max-width: 500px;
+.debug-menu h2 {
+    text-align: center;
+    margin-bottom: 15px;
+    color: #ffeb3b; 
+    font-size: 1.1em;
 }
 
-.calibration-content h2 {
-    color: #03a9f4;
+.debug-controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
     margin-bottom: 15px;
 }
 
-.calibration-content p {
-    margin-bottom: 20px;
+.control-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background-color: #333;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.control-item label {
+    font-size: 14px;
+    color: #ccc;
+}
+
+.control-item input[type="range"] {
+    width: 100%;
+    cursor: pointer;
+}
+
+.control-item span {
+    font-size: 14px;
+    color: #ffeb3b;
+    font-weight: bold;
+    text-align: right;
+}
+
+.debug-readouts {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #444;
+    font-size: 13px;
+    color: #bbb;
     line-height: 1.6;
 }
 
-#countdown {
-    font-size: 4em;
-    font-weight: bold;
+.debug-readouts span {
     color: #ffeb3b;
-    margin-bottom: 20px;
-    display: none; /* Initially hidden */
-}
-
-#calibrate-button, .calibrate-btn {
-    background-color: #03a9f4;
-    color: #fff;
-    border: none;
-    padding: 12px 25px;
-    font-size: 1em;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-#calibrate-button:hover, .calibrate-btn:hover {
-    background-color: #0288d1;
-}
-
-.calibration-status {
-    margin-top: 15px;
-    font-size: 0.9em;
-    color: #ff9800;
-    min-height: 1.2em; /* Reserve space */
-}
-
-.hidden {
-    display: none !important; /* Use !important cautiously, but needed here to override other display rules */
-}
-
-#main-content .controls {
-    display: flex;
-    flex-direction: row; /* Arrange controls horizontally */
-    justify-content: space-between; /* Space out items */
-    align-items: center; /* Align items vertically */
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
-    gap: 15px;
-}
-
-#main-content .toggle-group {
-    justify-content: flex-start; /* Align toggles to the start */
-}
-
-#main-content .status {
-    text-align: left; /* Align status text */
-    flex-grow: 1; /* Allow status to take available space */
-}
-
-.calibrate-btn {
-    margin-left: 10px; /* Add some space */
-    background-color: #ff9800;
-}
-
-.calibrate-btn:hover {
-    background-color: #f57c00;
+    font-family: 'Courier New', Courier, monospace;
 }
 
 @media (max-width: 600px) {
@@ -216,37 +187,7 @@ input[type="checkbox"] {
         flex-direction: column;
         align-items: flex-start;
     }
-}
-
-@media (max-width: 768px) { 
-    #main-content .controls {
-        flex-direction: column; /* Stack controls vertically on smaller screens */
-        align-items: center; /* Center items */
-    }
-    #main-content .toggle-group {
-        justify-content: center; /* Center toggles */
-    }
-    #main-content .status {
-        text-align: center; /* Center status text */
-        width: 100%; /* Take full width */
-        margin-bottom: 10px;
-    }
-    .calibrate-btn {
-        margin-left: 0; /* Remove margin */
-        margin-top: 10px; /* Add top margin */
-        width: 80%; /* Make button wider */
-        max-width: 200px;
-    }
-}
-
-@media (max-width: 600px) {
-    .calibration-content {
-        padding: 20px;
-    }
-    #countdown {
-        font-size: 3em;
-    }
-    #calibrate-button, .calibrate-btn {
-        padding: 10px 20px;
+    .debug-controls-grid {
+        grid-template-columns: 1fr; 
     }
 }

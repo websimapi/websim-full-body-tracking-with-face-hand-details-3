@@ -27,36 +27,35 @@ export const FACEMESH_CONTOURS = [
 ];
 
 // Initialize face tracking
-export function initFaceTracking(scene, config, baseScaleFactor) { 
+export function initFaceTracking(scene, config) {
     const faceMesh = {
         landmarks: {},
-        connections: {},
-        baseScaleFactor: baseScaleFactor || 2.5 
+        connections: {}
     };
-
+    
     const faceMaterial = new THREE.MeshStandardMaterial({ 
         color: config.threeJS.faceColor,
         emissive: config.threeJS.faceColor,
         emissiveIntensity: 0.3
     });
-
+    
     const jointGeometry = new THREE.SphereGeometry(config.threeJS.jointRadius * 0.5, 8, 8);
-
+    
     // We'll add key face landmarks
-    for (let i = 0; i < 468; i++) { 
+    for (let i = 0; i < 468; i++) {
         const joint = new THREE.Mesh(jointGeometry, faceMaterial);
         joint.visible = false;
         scene.add(joint);
         faceMesh.landmarks[i] = joint;
     }
-
+    
     // Create face connections for important contours
     const faceConnectorMaterial = new THREE.MeshStandardMaterial({ 
         color: config.threeJS.faceColor,
         emissive: config.threeJS.faceColor,
         emissiveIntensity: 0.2
     });
-
+    
     for (const connection of FACEMESH_CONTOURS) {
         const geometry = new THREE.CylinderGeometry(
             config.threeJS.boneRadius * 0.4, 
@@ -68,47 +67,58 @@ export function initFaceTracking(scene, config, baseScaleFactor) {
         scene.add(bone);
         bone.visible = false;
         faceMesh.connections[connection.join('-')] = bone;
-        faceMesh.connections[`${connection[1]}-${connection[0]}`] = bone; 
     }
-
+    
     return faceMesh;
 }
 
+// Helper vector for calculations
+const _initialJointPos = new THREE.Vector3();
+
 // Update face mesh with new landmark data
-export function updateFaceMesh(landmarks, faceMesh, updateBoneFn, dynamicScale) { 
-    const scaleFactor = faceMesh.baseScaleFactor * dynamicScale; 
-    const yOffset = 0.8; 
+export function updateFaceMesh(landmarks, faceMesh, updateBoneFn, globalOffset, globalScale) { 
+    const localScaleFactor = 2.5; 
+    const localYOffset = 0.8; 
 
     // Update face landmarks
     for (let i = 0; i < landmarks.length; i++) {
-        if (!faceMesh.landmarks[i]) continue; 
+        if (!faceMesh.landmarks[i]) continue;
 
         const landmark = landmarks[i];
         const joint = faceMesh.landmarks[i];
 
-        // Position face landmarks in 3D space, apply offset and dynamic scale
-        joint.position.set(
-            -(landmark.x - 0.5) * scaleFactor,
-            (landmark.y - 0.5) * -scaleFactor + yOffset, 
-            (landmark.z * scaleFactor) 
+        // 1. Calculate position based on local settings
+        _initialJointPos.set(
+            -(landmark.x - 0.5) * localScaleFactor,
+            (landmark.y - 0.5) * -localScaleFactor + localYOffset,
+            landmark.z * localScaleFactor
         );
 
-        // Assume face landmarks are always visible if detected 
+        // 2. Apply global scale (relative to a conceptual center point - simplified here)
+        // We'll scale the initial offset from the center (0, localYOffset, 0)
+        const centerPoint = new THREE.Vector3(0, localYOffset, 0);
+        _initialJointPos.sub(centerPoint); // Vector from center to initial pos
+        _initialJointPos.multiplyScalar(globalScale); // Scale this vector
+        _initialJointPos.add(centerPoint); // Add back to center
+
+        // 3. Apply global offset
+        joint.position.copy(_initialJointPos).add(globalOffset);
+
         joint.visible = true;
     }
 
     // Update face contour connections
+    // Bones are updated based on the final joint positions, so they inherit the offsets/scale
     for (const connection of FACEMESH_CONTOURS) {
         const [i, j] = connection;
-        const connectionKey = connection.join('-');
-        // Ensure bone and joints exist (check both landmark indices)
-        if (!faceMesh.connections[connectionKey] || !faceMesh.landmarks[i] || !faceMesh.landmarks[j]) continue;
+        if (!faceMesh.connections[connection.join('-')] ||
+            !faceMesh.landmarks[i] ||
+            !faceMesh.landmarks[j]) continue;
 
-        const bone = faceMesh.connections[connectionKey];
+        const bone = faceMesh.connections[connection.join('-')];
         const jointA = faceMesh.landmarks[i];
         const jointB = faceMesh.landmarks[j];
 
-        // Only show bones if both connected joints are visible 
         if(jointA.visible && jointB.visible) {
              updateBoneFn(bone, jointA.position, jointB.position);
              bone.visible = true;
@@ -122,10 +132,10 @@ export function updateFaceMesh(landmarks, faceMesh, updateBoneFn, dynamicScale) 
 export function hideFaceMesh(faceMesh) {
     // Hide all face landmarks and connections
     for (const key in faceMesh.landmarks) {
-         if (faceMesh.landmarks[key]) faceMesh.landmarks[key].visible = false;
+        faceMesh.landmarks[key].visible = false;
     }
-
+    
     for (const key in faceMesh.connections) {
-        if (faceMesh.connections[key]) faceMesh.connections[key].visible = false;
+        faceMesh.connections[key].visible = false;
     }
 }
