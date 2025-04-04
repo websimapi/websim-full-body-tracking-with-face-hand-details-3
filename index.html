@@ -2,7 +2,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Full Body Tracking with Face & Hand Details</title>
+    <title>Advanced 3D Body Tracking Debug</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1635989137/holistic.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -48,31 +48,147 @@
         <!-- Debug Menu -->
         <div class="debug-menu" id="debug-menu">
             <h2>Debug Controls</h2>
-            <div class="debug-controls-grid">
-                <div class="control-item">
-                    <label for="global-offset-x">Global Offset X:</label>
-                    <input type="range" id="global-offset-x" min="-2" max="2" step="0.05" value="0">
-                    <span id="global-offset-x-value">0.00</span>
-                </div>
-                <div class="control-item">
-                    <label for="global-offset-y">Global Offset Y:</label>
-                    <input type="range" id="global-offset-y" min="-2" max="2" step="0.05" value="0">
-                    <span id="global-offset-y-value">0.00</span>
-                </div>
-                <div class="control-item">
-                    <label for="global-offset-z">Global Offset Z:</label>
-                    <input type="range" id="global-offset-z" min="-2" max="2" step="0.05" value="0">
-                    <span id="global-offset-z-value">0.00</span>
-                </div>
-                <div class="control-item">
-                    <label for="global-scale">Global Scale:</label>
-                    <input type="range" id="global-scale" min="0.1" max="3" step="0.05" value="1">
-                    <span id="global-scale-value">1.00</span>
+
+            <!-- Global Controls -->
+            <div class="debug-section">
+                <h3>Global Avatar Controls</h3>
+                <div class="debug-controls-grid global-controls">
+                    <div class="control-item">
+                        <label for="global-offset-x">Avatar Offset X:</label>
+                        <input type="range" id="global-offset-x" min="-2" max="2" step="0.05" value="0">
+                        <span id="global-offset-x-value">0.00</span>
+                    </div>
+                    <div class="control-item">
+                        <label for="global-offset-y">Avatar Offset Y:</label>
+                        <input type="range" id="global-offset-y" min="-2" max="2" step="0.05" value="0">
+                        <span id="global-offset-y-value">0.00</span>
+                    </div>
+                    <div class="control-item">
+                        <label for="global-offset-z">Avatar Offset Z:</label>
+                        <input type="range" id="global-offset-z" min="-2" max="2" step="0.05" value="0">
+                        <span id="global-offset-z-value">0.00</span>
+                    </div>
+                    <div class="control-item">
+                        <label for="global-scale">Avatar Scale:</label>
+                        <input type="range" id="global-scale" min="0.1" max="3" step="0.05" value="1">
+                        <span id="global-scale-value">1.00</span>
+                    </div>
                 </div>
             </div>
-            <div class="debug-readouts">
-                <p>Camera Position: <span id="cam-pos">N/A</span></p>
-                <p>Camera Target: <span id="cam-target">N/A</span></p>
+
+            <!-- Part-Specific Controls -->
+            <div class="debug-section">
+                <h3>Part-Specific Adjustments</h3>
+                <div class="debug-controls-grid part-controls">
+                    <!-- Face Controls -->
+                    <fieldset class="control-group">
+                        <legend>Face</legend>
+                        <div class="control-item">
+                            <label for="face-offset-x">Offset X:</label>
+                            <input type="range" id="face-offset-x" min="-1" max="1" step="0.02" value="0">
+                            <span id="face-offset-x-value">0.00</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="face-offset-y">Offset Y:</label>
+                            <input type="range" id="face-offset-y" min="-1" max="1" step="0.02" value="0">
+                            <span id="face-offset-y-value">0.00</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="face-offset-z">Offset Z:</label>
+                            <input type="range" id="face-offset-z" min="-1" max="1" step="0.02" value="0">
+                            <span id="face-offset-z-value">0.00</span>
+                        </div>
+                         <div class="control-item">
+                            <label for="face-scale">Scale:</label>
+                            <input type="range" id="face-scale" min="0.5" max="1.5" step="0.01" value="1">
+                            <span id="face-scale-value">1.00</span>
+                        </div>
+                    </fieldset>
+
+                    <!-- Body Controls -->
+                    <fieldset class="control-group">
+                        <legend>Body</legend>
+                         <div class="control-item">
+                            <label for="body-offset-x">Offset X:</label>
+                            <input type="range" id="body-offset-x" min="-1" max="1" step="0.02" value="0">
+                            <span id="body-offset-x-value">0.00</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="body-offset-y">Offset Y:</label>
+                            <input type="range" id="body-offset-y" min="-1" max="1" step="0.02" value="0">
+                            <span id="body-offset-y-value">0.00</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="body-offset-z">Offset Z:</label>
+                            <input type="range" id="body-offset-z" min="-1" max="1" step="0.02" value="0">
+                            <span id="body-offset-z-value">0.00</span>
+                        </div>
+                         <div class="control-item">
+                            <label for="body-scale">Scale:</label>
+                            <input type="range" id="body-scale" min="0.5" max="1.5" step="0.01" value="1">
+                            <span id="body-scale-value">1.00</span>
+                        </div>
+                    </fieldset>
+
+                    <!-- Left Hand Controls -->
+                    <fieldset class="control-group">
+                        <legend>Left Hand</legend>
+                         <div class="control-item">
+                            <label for="lhand-offset-x">Offset X:</label>
+                            <input type="range" id="lhand-offset-x" min="-1" max="1" step="0.02" value="0">
+                            <span id="lhand-offset-x-value">0.00</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="lhand-offset-y">Offset Y:</label>
+                            <input type="range" id="lhand-offset-y" min="-1" max="1" step="0.02" value="0">
+                            <span id="lhand-offset-y-value">0.00</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="lhand-offset-z">Offset Z:</label>
+                            <input type="range" id="lhand-offset-z" min="-1" max="1" step="0.02" value="0">
+                            <span id="lhand-offset-z-value">0.00</span>
+                        </div>
+                         <div class="control-item">
+                            <label for="lhand-scale">Scale:</label>
+                            <input type="range" id="lhand-scale" min="0.5" max="1.5" step="0.01" value="1">
+                            <span id="lhand-scale-value">1.00</span>
+                        </div>
+                    </fieldset>
+
+                     <!-- Right Hand Controls -->
+                    <fieldset class="control-group">
+                        <legend>Right Hand</legend>
+                         <div class="control-item">
+                            <label for="rhand-offset-x">Offset X:</label>
+                            <input type="range" id="rhand-offset-x" min="-1" max="1" step="0.02" value="0">
+                            <span id="rhand-offset-x-value">0.00</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="rhand-offset-y">Offset Y:</label>
+                            <input type="range" id="rhand-offset-y" min="-1" max="1" step="0.02" value="0">
+                            <span id="rhand-offset-y-value">0.00</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="rhand-offset-z">Offset Z:</label>
+                            <input type="range" id="rhand-offset-z" min="-1" max="1" step="0.02" value="0">
+                            <span id="rhand-offset-z-value">0.00</span>
+                        </div>
+                         <div class="control-item">
+                            <label for="rhand-scale">Scale:</label>
+                            <input type="range" id="rhand-scale" min="0.5" max="1.5" step="0.01" value="1">
+                            <span id="rhand-scale-value">1.00</span>
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+
+            <!-- Readouts -->
+            <div class="debug-section">
+                <h3>Readouts</h3>
+                <div class="debug-readouts">
+                    <p>Camera Position: <span id="cam-pos">N/A</span></p>
+                    <p>Camera Target: <span id="cam-target">N/A</span></p>
+                </div>
             </div>
         </div>
     </div>

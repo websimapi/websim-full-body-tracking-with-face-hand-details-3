@@ -33,8 +33,9 @@ function isWristToFingerConnection(connection, side) {
 }
 
 // Helper vector for calculations
-const _initialBodyJointPos = new THREE.Vector3();
+const _tempJointPos = new THREE.Vector3(); // Renamed from _initialBodyJointPos for clarity
 const _shoulderMidpoint = new THREE.Vector3(); // For neck bone calculation
+const _centerPoint = new THREE.Vector3(); // For scaling calculations
 
 // Initialize body tracking
 export function initBodyTracking(scene, config) {
@@ -100,21 +101,22 @@ export function updateBodyMesh(
     rightHandLandmarks,
     faceLandmarks,
     faceMesh,
-    globalOffset, // Added
-    globalScale // Added
+    globalOffset,
+    globalScale,
+    localOffset, // Added: Body-specific offset
+    localScale  // Added: Body-specific scale
 ) {
-    const localScaleFactor = 2.5; // Renamed
-    const localYOffset = 0.8; // Renamed
+    const baseScaleFactor = 2.5; // Base scaling from MediaPipe coords
+    const baseYOffset = 0.8; // Base Y offset
     const leftHandActive = leftHandLandmarks && leftHandLandmarks.length > 0;
     const rightHandActive = rightHandLandmarks && rightHandLandmarks.length > 0;
-    // Ensure we check faceMesh existence and the specific landmark 152
     const faceActive = faceLandmarks && faceLandmarks.length > 152 && faceMesh && faceMesh.landmarks[152];
 
-    // --- Z-Axis Alignment Calculation (remains the same) ---
+    // --- Z-Axis Alignment Calculation (remains the same for now) ---
     let targetShoulderZ = null;
     if (faceActive && landmarks && landmarks.length > 12 && faceLandmarks && faceLandmarks.length > 152) {
         const poseNose = landmarks[0];
-        const faceChin = faceLandmarks[152];
+        const faceChin = faceLandmarks[152]; // Use the raw landmark Z here for calculation
         const poseShoulderMidZ = (landmarks[11]?.z + landmarks[12]?.z) / 2;
 
         if (poseNose && faceChin && typeof poseShoulderMidZ === 'number' && !isNaN(poseShoulderMidZ)) {
@@ -130,8 +132,8 @@ export function updateBodyMesh(
     const leftFingerBaseIndices = [17, 19, 21];
     const rightFingerBaseIndices = [18, 20, 22];
 
-    // Conceptual center for scaling
-    const centerPoint = new THREE.Vector3(0, localYOffset, 0);
+    // Conceptual center for GLOBAL scaling
+    _centerPoint.set(0, baseYOffset, 0); // Base center before global adjustments
 
     // Scale and position the joints
     for (let i = 11; i < landmarks.length; i++) {
@@ -141,11 +143,8 @@ export function updateBodyMesh(
         const joint = bodyMesh.joints[i];
 
         // Override wrist positions if hand data is available
-        if (i === 15 && leftWristPos && (leftWristPos.visibility ?? 1) > 0.5) {
-            landmark = leftWristPos;
-        } else if (i === 16 && rightWristPos && (rightWristPos.visibility ?? 1) > 0.5) {
-            landmark = rightWristPos;
-        }
+        if (i === 15 && leftWristPos && (leftWristPos.visibility ?? 1) > 0.5) landmark = leftWristPos;
+        else if (i === 16 && rightWristPos && (rightWristPos.visibility ?? 1) > 0.5) landmark = rightWristPos;
 
         // Apply Z-offset to shoulders if calculated
         let zValue = landmark.z;
@@ -153,20 +152,30 @@ export function updateBodyMesh(
             zValue = targetShoulderZ;
         }
 
-        // 1. Calculate initial position based on local settings and Z-alignment
-        _initialBodyJointPos.set(
-            -(landmark.x - 0.5) * localScaleFactor,
-            (landmark.y - 0.5) * -localScaleFactor + localYOffset,
-            (zValue * localScaleFactor) // Use potentially adjusted zValue
+        // --- Transformation Order ---
+        // 1. Calculate initial position based on MediaPipe coords, base scale/offset, and Z-alignment
+        _tempJointPos.set(
+            -(landmark.x - 0.5) * baseScaleFactor,
+            (landmark.y - 0.5) * -baseScaleFactor + baseYOffset,
+            (zValue * baseScaleFactor) // Use potentially adjusted zValue
         );
 
-        // 2. Apply global scale (relative to center point)
-        _initialBodyJointPos.sub(centerPoint);
-        _initialBodyJointPos.multiplyScalar(globalScale);
-        _initialBodyJointPos.add(centerPoint);
+        // 2. Apply LOCAL offset and scale (relative to the base position)
+        // Scaling is tricky relative to a point. Simple approach: scale the offset from the base Y offset.
+        _tempJointPos.y -= baseYOffset; // Offset from base Y
+        _tempJointPos.multiplyScalar(localScale); // Apply local scale
+        _tempJointPos.y += baseYOffset; // Add base Y back
+        _tempJointPos.add(localOffset); // Apply local offset
 
-        // 3. Apply global offset
-        joint.position.copy(_initialBodyJointPos).add(globalOffset);
+        // 3. Apply GLOBAL scale (relative to the global center point)
+        _tempJointPos.sub(_centerPoint); // Vector from global center to current pos
+        _tempJointPos.multiplyScalar(globalScale); // Scale this vector
+        _tempJointPos.add(_centerPoint); // Add back to global center
+
+        // 4. Apply GLOBAL offset
+        joint.position.copy(_tempJointPos).add(globalOffset);
+        // --- End Transformation Order ---
+
 
         // Determine joint visibility (logic remains the same)
         const visibilityThreshold = 0.5;
@@ -179,9 +188,9 @@ export function updateBodyMesh(
     }
 
     // --- Neck Connection Update ---
-    // Use the *final* joint positions which include global offsets/scale
-    if (faceActive && bodyMesh.neckBone && faceMesh.landmarks[152]) { // Check landmark 152 exists
-        const chinJoint = faceMesh.landmarks[152]; // This position already includes global offset/scale
+    // Use the *final* joint positions which include all offsets/scales
+    if (faceActive && bodyMesh.neckBone && faceMesh.landmarks[152]) {
+        const chinJoint = faceMesh.landmarks[152]; // This position already includes its own global/local offset/scale
         const leftShoulderJoint = bodyMesh.joints[11];
         const rightShoulderJoint = bodyMesh.joints[12];
 
@@ -201,7 +210,8 @@ export function updateBodyMesh(
     for (const connection of POSE_CONNECTIONS) {
         const [i, j] = connection;
         const connectionKey = connection.join('-');
-        const bone = bodyMesh.bones[connectionKey];
+        // Use the stored key, avoid reconstructing potentially reversed key
+        const bone = bodyMesh.bones[connectionKey] || bodyMesh.bones[`${j}-${i}`];
         if (!bone) continue;
 
         const jointA = bodyMesh.joints[i];

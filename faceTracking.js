@@ -73,12 +73,24 @@ export function initFaceTracking(scene, config) {
 }
 
 // Helper vector for calculations
-const _initialJointPos = new THREE.Vector3();
+const _tempJointPos = new THREE.Vector3();
+const _centerPoint = new THREE.Vector3();
 
 // Update face mesh with new landmark data
-export function updateFaceMesh(landmarks, faceMesh, updateBoneFn, globalOffset, globalScale) { 
-    const localScaleFactor = 2.5; 
-    const localYOffset = 0.8; 
+export function updateFaceMesh(
+    landmarks,
+    faceMesh,
+    updateBoneFn,
+    globalOffset,
+    globalScale,
+    localOffset,
+    localScale  
+) {
+    const baseScaleFactor = 2.5;
+    const baseYOffset = 0.8;
+
+    // Conceptual center for GLOBAL scaling
+    _centerPoint.set(0, baseYOffset, 0);
 
     // Update face landmarks
     for (let i = 0; i < landmarks.length; i++) {
@@ -87,35 +99,38 @@ export function updateFaceMesh(landmarks, faceMesh, updateBoneFn, globalOffset, 
         const landmark = landmarks[i];
         const joint = faceMesh.landmarks[i];
 
-        // 1. Calculate position based on local settings
-        _initialJointPos.set(
-            -(landmark.x - 0.5) * localScaleFactor,
-            (landmark.y - 0.5) * -localScaleFactor + localYOffset,
-            landmark.z * localScaleFactor
+        _tempJointPos.set(
+            -(landmark.x - 0.5) * baseScaleFactor,
+            (landmark.y - 0.5) * -baseScaleFactor + baseYOffset,
+            landmark.z * baseScaleFactor
         );
 
-        // 2. Apply global scale (relative to a conceptual center point - simplified here)
-        // We'll scale the initial offset from the center (0, localYOffset, 0)
-        const centerPoint = new THREE.Vector3(0, localYOffset, 0);
-        _initialJointPos.sub(centerPoint); // Vector from center to initial pos
-        _initialJointPos.multiplyScalar(globalScale); // Scale this vector
-        _initialJointPos.add(centerPoint); // Add back to center
+        // Apply LOCAL offset and scale
+        _tempJointPos.y -= baseYOffset;
+        _tempJointPos.multiplyScalar(localScale);
+        _tempJointPos.y += baseYOffset;
+        _tempJointPos.add(localOffset);
 
-        // 3. Apply global offset
-        joint.position.copy(_initialJointPos).add(globalOffset);
+        // Apply GLOBAL scale
+        _tempJointPos.sub(_centerPoint);
+        _tempJointPos.multiplyScalar(globalScale);
+        _tempJointPos.add(_centerPoint);
+
+        // Apply GLOBAL offset
+        joint.position.copy(_tempJointPos).add(globalOffset);
 
         joint.visible = true;
     }
 
     // Update face contour connections
-    // Bones are updated based on the final joint positions, so they inherit the offsets/scale
     for (const connection of FACEMESH_CONTOURS) {
         const [i, j] = connection;
-        if (!faceMesh.connections[connection.join('-')] ||
+        const connectionKey = connection.join('-');
+        const bone = faceMesh.connections[connectionKey];
+        if (!bone ||
             !faceMesh.landmarks[i] ||
             !faceMesh.landmarks[j]) continue;
 
-        const bone = faceMesh.connections[connection.join('-')];
         const jointA = faceMesh.landmarks[i];
         const jointB = faceMesh.landmarks[j];
 
@@ -132,10 +147,10 @@ export function updateFaceMesh(landmarks, faceMesh, updateBoneFn, globalOffset, 
 export function hideFaceMesh(faceMesh) {
     // Hide all face landmarks and connections
     for (const key in faceMesh.landmarks) {
-        faceMesh.landmarks[key].visible = false;
+        if (faceMesh.landmarks[key]) faceMesh.landmarks[key].visible = false;
     }
-    
+
     for (const key in faceMesh.connections) {
-        faceMesh.connections[key].visible = false;
+        if (faceMesh.connections[key]) faceMesh.connections[key].visible = false;
     }
 }

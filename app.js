@@ -24,15 +24,61 @@ const showBodyCheckbox = document.getElementById('show-body');
 const showFaceCheckbox = document.getElementById('show-face');
 const showHandsCheckbox = document.getElementById('show-hands');
 
-// Debug DOM Elements
-const debugOffsetXSlider = document.getElementById('global-offset-x');
-const debugOffsetYSlider = document.getElementById('global-offset-y');
-const debugOffsetZSlider = document.getElementById('global-offset-z');
-const debugScaleSlider = document.getElementById('global-scale');
-const debugOffsetXValue = document.getElementById('global-offset-x-value');
-const debugOffsetYValue = document.getElementById('global-offset-y-value');
-const debugOffsetZValue = document.getElementById('global-offset-z-value');
-const debugScaleValue = document.getElementById('global-scale-value');
+// Debug DOM Elements (Global)
+const globalOffsetXSlider = document.getElementById('global-offset-x');
+const globalOffsetYSlider = document.getElementById('global-offset-y');
+const globalOffsetZSlider = document.getElementById('global-offset-z');
+const globalScaleSlider = document.getElementById('global-scale');
+const globalOffsetXValue = document.getElementById('global-offset-x-value');
+const globalOffsetYValue = document.getElementById('global-offset-y-value');
+const globalOffsetZValue = document.getElementById('global-offset-z-value');
+const globalScaleValue = document.getElementById('global-scale-value');
+
+// Debug DOM Elements (Part-Specific) - Define refs for all new sliders/values
+const debugElements = {
+    face: {
+        offsetX: document.getElementById('face-offset-x'),
+        offsetY: document.getElementById('face-offset-y'),
+        offsetZ: document.getElementById('face-offset-z'),
+        scale: document.getElementById('face-scale'),
+        offsetXValue: document.getElementById('face-offset-x-value'),
+        offsetYValue: document.getElementById('face-offset-y-value'),
+        offsetZValue: document.getElementById('face-offset-z-value'),
+        scaleValue: document.getElementById('face-scale-value'),
+    },
+    body: {
+        offsetX: document.getElementById('body-offset-x'),
+        offsetY: document.getElementById('body-offset-y'),
+        offsetZ: document.getElementById('body-offset-z'),
+        scale: document.getElementById('body-scale'),
+        offsetXValue: document.getElementById('body-offset-x-value'),
+        offsetYValue: document.getElementById('body-offset-y-value'),
+        offsetZValue: document.getElementById('body-offset-z-value'),
+        scaleValue: document.getElementById('body-scale-value'),
+    },
+    leftHand: {
+        offsetX: document.getElementById('lhand-offset-x'),
+        offsetY: document.getElementById('lhand-offset-y'),
+        offsetZ: document.getElementById('lhand-offset-z'),
+        scale: document.getElementById('lhand-scale'),
+        offsetXValue: document.getElementById('lhand-offset-x-value'),
+        offsetYValue: document.getElementById('lhand-offset-y-value'),
+        offsetZValue: document.getElementById('lhand-offset-z-value'),
+        scaleValue: document.getElementById('lhand-scale-value'),
+    },
+    rightHand: {
+        offsetX: document.getElementById('rhand-offset-x'),
+        offsetY: document.getElementById('rhand-offset-y'),
+        offsetZ: document.getElementById('rhand-offset-z'),
+        scale: document.getElementById('rhand-scale'),
+        offsetXValue: document.getElementById('rhand-offset-x-value'),
+        offsetYValue: document.getElementById('rhand-offset-y-value'),
+        offsetZValue: document.getElementById('rhand-offset-z-value'),
+        scaleValue: document.getElementById('rhand-scale-value'),
+    }
+};
+
+// Debug DOM Elements (Readouts)
 const camPosDisplay = document.getElementById('cam-pos');
 const camTargetDisplay = document.getElementById('cam-target');
 
@@ -48,50 +94,64 @@ let leftHandMesh = {};
 let rightHandMesh = {};
 let terrainMesh;
 
-// Debug parameters
+// Debug parameters (Global)
 let debugGlobalOffset = new THREE.Vector3(0, 0, 0);
 let debugGlobalScale = 1.0;
+
+// Debug parameters (Part-Specific)
+let debugLocalOffsets = {
+    face: new THREE.Vector3(0, 0, 0),
+    body: new THREE.Vector3(0, 0, 0),
+    leftHand: new THREE.Vector3(0, 0, 0),
+    rightHand: new THREE.Vector3(0, 0, 0),
+};
+let debugLocalScales = {
+    face: 1.0,
+    body: 1.0,
+    leftHand: 1.0,
+    rightHand: 1.0,
+};
 
 // Initialize the application
 async function init() {
     try {
         statusElement.textContent = "Initializing holistic model...";
-        
+
         // Initialize the holistic model
         holistic = new Holistic({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1635989137/${file}`;
-            }
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1635989137/${file}`
         });
-        
+
         // Configure the model with settings from config.js
         holistic.setOptions(config.modelSettings);
-        
+
         // Set up the callback for processing results
         holistic.onResults(onResults);
-        
+
         // Set up the camera
         camera = new Camera(video, {
             onFrame: async () => {
-                await holistic.send({image: video});
+                if (holistic) { // Check if holistic is initialized
+                   await holistic.send({image: video});
+                }
             },
             width: config.camera.width,
             height: config.camera.height,
             fps: config.camera.fps
         });
-        
+
         // Initialize Three.js scene
         initThreeJS();
 
         // Initialize Debug Controls
         initDebugControls();
-        
+
         // Start the camera
         await camera.start();
-        
+
         // Resize canvas to match video dimensions
         resizeCanvasToDisplaySize();
-        
+
         statusElement.textContent = "Tracking active";
     } catch (error) {
         console.error("Error initializing:", error);
@@ -99,7 +159,7 @@ async function init() {
     }
 }
 
-// Initialize Three.js scene
+// Initialize Three.js scene 
 function initThreeJS() {
     // Create scene
     scene = new THREE.Scene();
@@ -169,10 +229,10 @@ function initThreeJS() {
 
     function enableShadows(meshGroup) {
         if (!meshGroup) return;
-        Object.values(meshGroup.landmarks || {}).forEach(mesh => mesh.castShadow = true);
-        Object.values(meshGroup.joints || {}).forEach(mesh => mesh.castShadow = true);
-        Object.values(meshGroup.connections || {}).forEach(mesh => mesh.castShadow = true);
-        Object.values(meshGroup.bones || {}).forEach(mesh => mesh.castShadow = true);
+        Object.values(meshGroup.landmarks || {}).forEach(mesh => { if(mesh) mesh.castShadow = true });
+        Object.values(meshGroup.joints || {}).forEach(mesh => { if(mesh) mesh.castShadow = true });
+        Object.values(meshGroup.connections || {}).forEach(mesh => { if(mesh) mesh.castShadow = true });
+        Object.values(meshGroup.bones || {}).forEach(mesh => { if(mesh) mesh.castShadow = true });
         if (meshGroup.neckBone) meshGroup.neckBone.castShadow = true; 
     }
     enableShadows(bodyMesh);
@@ -182,9 +242,11 @@ function initThreeJS() {
 
     // Handle window resize
     window.addEventListener('resize', () => {
-        camera3D.aspect = sceneContainer.clientWidth / sceneContainer.clientHeight;
-        camera3D.updateProjectionMatrix();
-        renderer.setSize(sceneContainer.clientWidth, sceneContainer.clientHeight);
+        if (camera3D && renderer && sceneContainer) {
+            camera3D.aspect = sceneContainer.clientWidth / sceneContainer.clientHeight;
+            camera3D.updateProjectionMatrix();
+            renderer.setSize(sceneContainer.clientWidth, sceneContainer.clientHeight);
+        }
     });
 
     // Start animation loop
@@ -193,39 +255,74 @@ function initThreeJS() {
 
 // Initialize Debug Controls Listeners
 function initDebugControls() {
-    debugOffsetXSlider.addEventListener('input', (e) => {
+    // --- Global Controls ---
+    globalOffsetXSlider.addEventListener('input', (e) => {
         debugGlobalOffset.x = parseFloat(e.target.value);
-        debugOffsetXValue.textContent = debugGlobalOffset.x.toFixed(2);
+        globalOffsetXValue.textContent = debugGlobalOffset.x.toFixed(2);
     });
-    debugOffsetYSlider.addEventListener('input', (e) => {
+    globalOffsetYSlider.addEventListener('input', (e) => {
         debugGlobalOffset.y = parseFloat(e.target.value);
-        debugOffsetYValue.textContent = debugGlobalOffset.y.toFixed(2);
+        globalOffsetYValue.textContent = debugGlobalOffset.y.toFixed(2);
     });
-    debugOffsetZSlider.addEventListener('input', (e) => {
+    globalOffsetZSlider.addEventListener('input', (e) => {
         debugGlobalOffset.z = parseFloat(e.target.value);
-        debugOffsetZValue.textContent = debugGlobalOffset.z.toFixed(2);
+        globalOffsetZValue.textContent = debugGlobalOffset.z.toFixed(2);
     });
-    debugScaleSlider.addEventListener('input', (e) => {
+    globalScaleSlider.addEventListener('input', (e) => {
         debugGlobalScale = parseFloat(e.target.value);
-        debugScaleValue.textContent = debugGlobalScale.toFixed(2);
+        globalScaleValue.textContent = debugGlobalScale.toFixed(2);
     });
 
-    // Set initial display values
-    debugOffsetXValue.textContent = debugGlobalOffset.x.toFixed(2);
-    debugOffsetYValue.textContent = debugGlobalOffset.y.toFixed(2);
-    debugOffsetZValue.textContent = debugGlobalOffset.z.toFixed(2);
-    debugScaleValue.textContent = debugGlobalScale.toFixed(2);
+    // --- Part-Specific Controls ---
+    function setupPartControls(partName) {
+        const elements = debugElements[partName];
+        const offset = debugLocalOffsets[partName];
+        elements.offsetX.addEventListener('input', (e) => {
+            offset.x = parseFloat(e.target.value);
+            elements.offsetXValue.textContent = offset.x.toFixed(2);
+        });
+        elements.offsetY.addEventListener('input', (e) => {
+            offset.y = parseFloat(e.target.value);
+            elements.offsetYValue.textContent = offset.y.toFixed(2);
+        });
+        elements.offsetZ.addEventListener('input', (e) => {
+            offset.z = parseFloat(e.target.value);
+            elements.offsetZValue.textContent = offset.z.toFixed(2);
+        });
+        elements.scale.addEventListener('input', (e) => {
+            debugLocalScales[partName] = parseFloat(e.target.value);
+            elements.scaleValue.textContent = debugLocalScales[partName].toFixed(2);
+        });
+
+        // Set initial display values for the part
+        elements.offsetXValue.textContent = offset.x.toFixed(2);
+        elements.offsetYValue.textContent = offset.y.toFixed(2);
+        elements.offsetZValue.textContent = offset.z.toFixed(2);
+        elements.scaleValue.textContent = debugLocalScales[partName].toFixed(2);
+    }
+
+    setupPartControls('face');
+    setupPartControls('body');
+    setupPartControls('leftHand');
+    setupPartControls('rightHand');
+
+    // Set initial display values for global controls
+    globalOffsetXValue.textContent = debugGlobalOffset.x.toFixed(2);
+    globalOffsetYValue.textContent = debugGlobalOffset.y.toFixed(2);
+    globalOffsetZValue.textContent = debugGlobalOffset.z.toFixed(2);
+    globalScaleValue.textContent = debugGlobalScale.toFixed(2);
 }
 
 // Format vector for display
 function formatVector(vec, precision = 2) {
+    if (!vec) return 'N/A';
     return `(${vec.x.toFixed(precision)}, ${vec.y.toFixed(precision)}, ${vec.z.toFixed(precision)})`;
 }
 
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
-    controls.update(); // Required if damping or auto-rotation is enabled
+    if(controls) controls.update(); // Required if damping or auto-rotation is enabled
 
     // Update debug readouts
     if (camera3D && controls) {
@@ -233,16 +330,19 @@ function animate() {
         camTargetDisplay.textContent = formatVector(controls.target);
     }
 
-    renderer.render(scene, camera3D);
+    if (renderer && scene && camera3D) { // Ensure objects exist
+      renderer.render(scene, camera3D);
+    }
 }
 
 // Handle window resize
 window.addEventListener('resize', resizeCanvasToDisplaySize);
 
 function resizeCanvasToDisplaySize() {
+    if (!video || !canvas) return; // Add guards
     const vidWidth = video.clientWidth;
     const vidHeight = video.clientHeight;
-    
+
     canvas.width = vidWidth;
     canvas.height = vidHeight;
 }
@@ -251,7 +351,15 @@ function resizeCanvasToDisplaySize() {
 function updateThreeJSPose(results) {
     // Update face first, as body might depend on its position
     if (showFaceCheckbox.checked && results.faceLandmarks) {
-        updateFaceMesh(results.faceLandmarks, faceMesh, updateBone, debugGlobalOffset, debugGlobalScale);
+        updateFaceMesh(
+            results.faceLandmarks,
+            faceMesh,
+            updateBone,
+            debugGlobalOffset,
+            debugGlobalScale,
+            debugLocalOffsets.face, // Pass local face offset
+            debugLocalScales.face    // Pass local face scale
+        );
     } else {
         hideFaceMesh(faceMesh);
     }
@@ -266,8 +374,10 @@ function updateThreeJSPose(results) {
             results.rightHandLandmarks,
             results.faceLandmarks,
             faceMesh,
-            debugGlobalOffset, // Pass debug offset
-            debugGlobalScale   // Pass debug scale
+            debugGlobalOffset, // Pass global offset
+            debugGlobalScale,  // Pass global scale
+            debugLocalOffsets.body, // Pass local body offset
+            debugLocalScales.body    // Pass local body scale
         );
     } else {
         hideBodyMesh(bodyMesh);
@@ -277,14 +387,30 @@ function updateThreeJSPose(results) {
     if (showHandsCheckbox.checked) {
         // Update left hand
         if (results.leftHandLandmarks) {
-            updateHandMesh(results.leftHandLandmarks, leftHandMesh, updateBone, debugGlobalOffset, debugGlobalScale);
+            updateHandMesh(
+                results.leftHandLandmarks,
+                leftHandMesh,
+                updateBone,
+                debugGlobalOffset,
+                debugGlobalScale,
+                debugLocalOffsets.leftHand, // Pass local left hand offset
+                debugLocalScales.leftHand   // Pass local left hand scale
+            );
         } else {
             hideHandMesh(leftHandMesh);
         }
 
         // Update right hand
         if (results.rightHandLandmarks) {
-            updateHandMesh(results.rightHandLandmarks, rightHandMesh, updateBone, debugGlobalOffset, debugGlobalScale);
+            updateHandMesh(
+                results.rightHandLandmarks,
+                rightHandMesh,
+                updateBone,
+                debugGlobalOffset,
+                debugGlobalScale,
+                debugLocalOffsets.rightHand, // Pass local right hand offset
+                debugLocalScales.rightHand  // Pass local right hand scale
+            );
         } else {
             hideHandMesh(rightHandMesh);
         }
@@ -294,17 +420,24 @@ function updateThreeJSPose(results) {
     }
 }
 
-// Process and visualize the tracking results
+// Process and visualize the tracking results 
 function onResults(results) {
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // Only draw if we have results
-    if (!results || !results.poseLandmarks) return; 
-    
+    if (!results || !results.poseLandmarks) {
+       // Optionally hide all meshes if no results are detected for a frame
+       hideFaceMesh(faceMesh);
+       hideBodyMesh(bodyMesh);
+       hideHandMesh(leftHandMesh);
+       hideHandMesh(rightHandMesh);
+       return;
+    }
+
     // Update 3D visualization with the new pose data
     updateThreeJSPose(results);
-    
+
     // Draw body pose if enabled (on the small webcam feed)
     if (showBodyCheckbox.checked && results.poseLandmarks) {
         let activePoseConnections = [...POSE_CONNECTIONS];
