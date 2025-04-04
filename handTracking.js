@@ -72,6 +72,7 @@ export function initHandTracking(scene, config, side) {
 // Update hand mesh with new landmark data
 export function updateHandMesh(landmarks, handMesh, updateBoneFn) {
     const scaleFactor = 2.5; // Unified scaling factor
+    const yOffset = 0.8; // Vertical offset to move the hand up (same as body/face)
 
     // Update hand landmarks
     for (let i = 0; i < landmarks.length; i++) {
@@ -79,24 +80,24 @@ export function updateHandMesh(landmarks, handMesh, updateBoneFn) {
 
         const landmark = landmarks[i];
         const joint = handMesh.landmarks[i];
-        
-        // Position hand landmarks in 3D space
+
+        // Position hand landmarks in 3D space, apply offset
         joint.position.set(
-            -(landmark.x - 0.5) * scaleFactor, 
-            (landmark.y - 0.5) * -scaleFactor, 
+            -(landmark.x - 0.5) * scaleFactor,
+            (landmark.y - 0.5) * -scaleFactor + yOffset, // Apply offset
             (landmark.z * scaleFactor) // Apply consistent scaling
         );
-        
+
         // Assume hand landmarks are always visible if detected
-        joint.visible = true; 
+        joint.visible = true;
     }
-    
+
     // Update hand connections
     for (const connection of HAND_CONNECTIONS) {
         const [i, j] = connection;
         // Ensure bone and joints exist
         if (!handMesh.connections[connection.join('-')] || !handMesh.landmarks[i] || !handMesh.landmarks[j]) continue;
-        
+
         const bone = handMesh.connections[connection.join('-')];
         const jointA = handMesh.landmarks[i];
         const jointB = handMesh.landmarks[j];

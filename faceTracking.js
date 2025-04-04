@@ -75,32 +75,33 @@ export function initFaceTracking(scene, config) {
 // Update face mesh with new landmark data
 export function updateFaceMesh(landmarks, faceMesh, updateBoneFn) {
     const scaleFactor = 2.5; // Unified scaling factor
+    const yOffset = 0.8; // Vertical offset to move the face up (same as body)
 
     // Update face landmarks
     for (let i = 0; i < landmarks.length; i++) {
         if (!faceMesh.landmarks[i]) continue; // Skip if landmark doesn't exist in our mesh
-        
+
         const landmark = landmarks[i];
         const joint = faceMesh.landmarks[i];
-        
-        // Position face landmarks in 3D space
+
+        // Position face landmarks in 3D space, apply offset
         joint.position.set(
-            -(landmark.x - 0.5) * scaleFactor, 
-            (landmark.y - 0.5) * -scaleFactor, 
+            -(landmark.x - 0.5) * scaleFactor,
+            (landmark.y - 0.5) * -scaleFactor + yOffset, // Apply offset
             (landmark.z * scaleFactor) // Apply consistent scaling
         );
-        
+
         // Assume face landmarks are always visible if detected
-        joint.visible = true; 
+        joint.visible = true;
     }
-    
+
     // Update face contour connections
     for (const connection of FACEMESH_CONTOURS) {
         const [i, j] = connection;
-        if (!faceMesh.connections[connection.join('-')] || 
-            !faceMesh.landmarks[i] || 
+        if (!faceMesh.connections[connection.join('-')] ||
+            !faceMesh.landmarks[i] ||
             !faceMesh.landmarks[j]) continue;
-        
+
         const bone = faceMesh.connections[connection.join('-')];
         const jointA = faceMesh.landmarks[i];
         const jointB = faceMesh.landmarks[j];

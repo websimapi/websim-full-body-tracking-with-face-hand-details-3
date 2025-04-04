@@ -24,31 +24,32 @@ export function updateBone(bone, startPos, endPos) {
 
     // Scale
     const length = startPos.distanceTo(endPos);
-    bone.scale.set(1, 1, length);
+    // Add a small epsilon to prevent zero scale which can cause issues
+    bone.scale.set(1, 1, length + 0.001);
 }
 
-// Function to create a simple terrain
+// Function to create a simple flat terrain
 export function createTerrain(width, height, segmentsWidth, segmentsHeight) {
     const geometry = new THREE.PlaneGeometry(width, height, segmentsWidth, segmentsHeight);
     geometry.rotateX(-Math.PI / 2); // Rotate to be horizontal
 
-    // Make it slightly uneven (simple noise)
+    // Remove noise for flat terrain
     const vertices = geometry.attributes.position.array;
     for (let i = 0; i < vertices.length; i += 3) {
-        vertices[i+1] = (Math.random() - 0.5) * 0.5; // Modify y-coordinate (height) randomly
+        vertices[i+1] = 0; // Set y-coordinate to 0 for flat terrain
     }
-    geometry.attributes.position.needsUpdate = true;
+    geometry.attributes.position.needsUpdate = true; 
     geometry.computeVertexNormals(); // Recalculate normals for lighting
 
     const material = new THREE.MeshStandardMaterial({
-        color: 0x888888, // Greyish color
+        color: 0x4CAF50, // Grass green color
         roughness: 0.9,
         metalness: 0.1,
-        wireframe: false, // Set to true to see the segments
-        side: THREE.DoubleSide // Make sure it's visible from below if camera dips
+        wireframe: false,
+        side: THREE.DoubleSide
     });
 
     const terrain = new THREE.Mesh(geometry, material);
-    terrain.position.y = -1.5; // Position the terrain below the avatar
+    terrain.position.y = -1.8; // Position the terrain slightly lower to ensure avatar is above it
     return terrain;
 }
