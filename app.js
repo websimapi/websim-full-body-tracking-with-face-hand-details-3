@@ -29,7 +29,7 @@ let holistic;
 let camera;
 
 // Three.js objects
-let scene, renderer, camera3D, controls; 
+let scene, renderer, camera3D, controls;
 let bodyMesh = {};
 let faceMesh = {};
 let leftHandMesh = {};
@@ -143,8 +143,8 @@ function initThreeJS() {
     scene.add(terrainMesh);
 
     // Initialize avatar meshes
-    bodyMesh = initBodyTracking(scene, config);
-    faceMesh = initFaceTracking(scene, config);
+    faceMesh = initFaceTracking(scene, config); 
+    bodyMesh = initBodyTracking(scene, config); 
     leftHandMesh = initHandTracking(scene, config, 'left');
     rightHandMesh = initHandTracking(scene, config, 'right');
 
@@ -154,6 +154,7 @@ function initThreeJS() {
         Object.values(meshGroup.joints || {}).forEach(mesh => mesh.castShadow = true);
         Object.values(meshGroup.connections || {}).forEach(mesh => mesh.castShadow = true);
         Object.values(meshGroup.bones || {}).forEach(mesh => mesh.castShadow = true);
+        if (meshGroup.neckBone) meshGroup.neckBone.castShadow = true; 
     }
     enableShadows(bodyMesh);
     enableShadows(faceMesh);
@@ -191,6 +192,13 @@ function resizeCanvasToDisplaySize() {
 
 // Update the 3D scene with new pose data
 function updateThreeJSPose(results) {
+    // Update face first, as body might depend on its position
+    if (showFaceCheckbox.checked && results.faceLandmarks) {
+        updateFaceMesh(results.faceLandmarks, faceMesh, updateBone);
+    } else {
+        hideFaceMesh(faceMesh);
+    }
+
     // Update body pose
     if (showBodyCheckbox.checked && results.poseLandmarks) {
         updateBodyMesh(
@@ -198,19 +206,14 @@ function updateThreeJSPose(results) {
             bodyMesh, 
             updateBone,
             results.leftHandLandmarks,
-            results.rightHandLandmarks
+            results.rightHandLandmarks,
+            results.faceLandmarks, 
+            faceMesh 
         );
     } else {
         hideBodyMesh(bodyMesh);
     }
-    
-    // Update face
-    if (showFaceCheckbox.checked && results.faceLandmarks) {
-        updateFaceMesh(results.faceLandmarks, faceMesh, updateBone);
-    } else {
-        hideFaceMesh(faceMesh);
-    }
-    
+
     // Update hands
     if (showHandsCheckbox.checked) {
         // Update left hand
@@ -245,21 +248,40 @@ function onResults(results) {
     
     // Draw body pose if enabled (on the small webcam feed)
     if (showBodyCheckbox.checked && results.poseLandmarks) {
+        let activePoseConnections = [...POSE_CONNECTIONS];
+        if (showHandsCheckbox.checked) {
+            const wristToFingerLeft = [[15, 17], [15, 19], [15, 21]];
+            const wristToFingerRight = [[16, 18], [16, 20], [16, 22]];
+            activePoseConnections = activePoseConnections.filter(conn => {
+                 const isLeftWf = results.leftHandLandmarks && wristToFingerLeft.some(wf => (wf[0] === conn[0] && wf[1] === conn[1]) || (wf[0] === conn[1] && wf[1] === conn[0]));
+                 const isRightWf = results.rightHandLandmarks && wristToFingerRight.some(wf => (wf[0] === conn[0] && wf[1] === conn[1]) || (wf[0] === conn[1] && wf[1] === conn[0]));
+                 return !isLeftWf && !isRightWf;
+            });
+        }
+
         drawConnectors(
-            ctx, results.poseLandmarks, POSE_CONNECTIONS,
+            ctx, results.poseLandmarks, activePoseConnections,
             {color: config.colors.body.connectors}
         );
-        
-        const bodyLandmarksOnly = results.poseLandmarks.slice(11); 
-        const bodyLandmarkIndices = {};
+
+        const landmarksToDraw = {};
+        const leftFingerBaseIndices = [17, 19, 21];
+        const rightFingerBaseIndices = [18, 20, 22];
+        const leftHandActive = showHandsCheckbox.checked && results.leftHandLandmarks;
+        const rightHandActive = showHandsCheckbox.checked && results.rightHandLandmarks;
+
         results.poseLandmarks.forEach((lm, index) => {
-            if (index >= 11) { 
-                bodyLandmarkIndices[index] = lm;
-            }
+            if (index < 11) return; 
+            if (leftHandActive && leftFingerBaseIndices.includes(index)) return; 
+            if (rightHandActive && rightFingerBaseIndices.includes(index)) return; 
+            if (leftHandActive && index === 15) return;
+            if (rightHandActive && index === 16) return;
+
+            landmarksToDraw[index] = lm;
         });
-        
+
         drawLandmarks(
-            ctx, Object.values(bodyLandmarkIndices), 
+            ctx, Object.values(landmarksToDraw),
             {color: config.colors.body.landmarks, radius: config.pointSizes.body}
         );
     }
@@ -267,20 +289,8 @@ function onResults(results) {
     // Draw face if enabled (on the small webcam feed)
     if (showFaceCheckbox.checked) {
         if (results.faceLandmarks) {
-            drawLandmarks(
-                ctx, results.faceLandmarks,
-                {color: config.colors.face.landmarks, radius: config.pointSizes.face}
-            );
-        }
-        
-        if (results.faceLandmarks) { 
             drawConnectors(
-                ctx, results.faceLandmarks, FACEMESH_TESSELATION, 
-                {color: config.colors.face.mesh, lineWidth: 0.5}
-            );
-            
-            drawConnectors(
-                ctx, results.faceLandmarks, FACEMESH_CONTOURS, 
+                ctx, results.faceLandmarks, FACEMESH_CONTOURS,
                 {color: config.colors.face.connectors}
             );
         }
