@@ -2,6 +2,9 @@
  * Hand tracking module for 3D visualization
  */
 
+// Assume THREE is globally available via script tag
+const THREE = window.THREE;
+
 // Constants for hand landmark connections
 export const HAND_CONNECTIONS = [
     // Thumb
@@ -19,23 +22,23 @@ export const HAND_CONNECTIONS = [
 ];
 
 // Initialize hand tracking
-export function initHandTracking(scene, THREE, config, side) {
+export function initHandTracking(scene, config, side) {
     const handMesh = {
         landmarks: {},
         connections: {}
     };
-    
+
     const isLeft = side === 'left';
     const colorKey = isLeft ? 'leftHandColor' : 'rightHandColor';
-    
-    const handMaterial = new THREE.MeshStandardMaterial({ 
+
+    const handMaterial = new THREE.MeshStandardMaterial({
         color: config.threeJS[colorKey],
         emissive: config.threeJS[colorKey],
         emissiveIntensity: 0.3
     });
-    
+
     const jointGeometry = new THREE.SphereGeometry(config.threeJS.jointRadius * 0.6, 8, 8);
-    
+
     // Create hand joints
     for (let i = 0; i < 21; i++) {
         const joint = new THREE.Mesh(jointGeometry, handMaterial);
@@ -43,18 +46,18 @@ export function initHandTracking(scene, THREE, config, side) {
         scene.add(joint);
         handMesh.landmarks[i] = joint;
     }
-    
+
     // Create hand connections
-    const handConnectorMaterial = new THREE.MeshStandardMaterial({ 
+    const handConnectorMaterial = new THREE.MeshStandardMaterial({
         color: config.threeJS[colorKey],
         emissive: config.threeJS[colorKey],
         emissiveIntensity: 0.2
     });
-    
+
     for (const connection of HAND_CONNECTIONS) {
         const geometry = new THREE.CylinderGeometry(
-            config.threeJS.boneRadius * 0.5, 
-            config.threeJS.boneRadius * 0.5, 
+            config.threeJS.boneRadius * 0.5,
+            config.threeJS.boneRadius * 0.5,
             1, 8
         );
         geometry.rotateX(Math.PI / 2);
@@ -63,7 +66,7 @@ export function initHandTracking(scene, THREE, config, side) {
         bone.visible = false;
         handMesh.connections[connection.join('-')] = bone;
     }
-    
+
     return handMesh;
 }
 

@@ -2,6 +2,9 @@
  * Face tracking module for 3D visualization
  */
 
+// Assume THREE is globally available via script tag
+const THREE = window.THREE;
+
 // Constants for face mesh visualizations
 export const FACEMESH_TESSELATION = [
     // A subset of the full mesh connections
@@ -25,7 +28,7 @@ export const FACEMESH_CONTOURS = [
 ];
 
 // Initialize face tracking
-export function initFaceTracking(scene, THREE, config) {
+export function initFaceTracking(scene, config) {
     const faceMesh = {
         landmarks: {},
         connections: {}

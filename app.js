@@ -4,12 +4,14 @@ import { initFaceTracking, updateFaceMesh, hideFaceMesh, FACEMESH_TESSELATION, F
 import { initHandTracking, updateHandMesh, hideHandMesh, HAND_CONNECTIONS } from './handTracking.js';
 import { createBone, updateBone, createTerrain } from './utils.js';
 
+// Assume THREE is globally available via script tag
+const THREE = window.THREE;
+
 // Global references to MediaPipe objects now loaded via script tags
 const Holistic = window.Holistic;
 const drawConnectors = window.drawConnectors;
 const drawLandmarks = window.drawLandmarks;
 const Camera = window.Camera;
-const THREE = window.THREE;
 
 // DOM Elements
 const video = document.getElementById('webcam');
@@ -131,10 +133,10 @@ function initThreeJS() {
     scene.add(terrainMesh);
 
     // Initialize avatar meshes
-    bodyMesh = initBodyTracking(scene, THREE, config);
-    faceMesh = initFaceTracking(scene, THREE, config);
-    leftHandMesh = initHandTracking(scene, THREE, config, 'left');
-    rightHandMesh = initHandTracking(scene, THREE, config, 'right');
+    bodyMesh = initBodyTracking(scene, config);
+    faceMesh = initFaceTracking(scene, config);
+    leftHandMesh = initHandTracking(scene, config, 'left');
+    rightHandMesh = initHandTracking(scene, config, 'right');
 
     function enableShadows(meshGroup) {
         if (!meshGroup) return;

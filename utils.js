@@ -2,7 +2,8 @@
  * Utility functions for 3D visualization
  */
 
-import * as THREE from 'three';
+// Assume THREE is globally available via script tag
+const THREE = window.THREE;
 
 // Create a bone (cylinder) between joints
 export function createBone(material, radius) {

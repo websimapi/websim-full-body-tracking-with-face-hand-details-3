@@ -2,6 +2,9 @@
  * Body tracking module for 3D visualization
  */
 
+// Assume THREE is globally available via script tag
+const THREE = window.THREE;
+
 // Constants for body landmark connections
 export const POSE_CONNECTIONS = [
     // Connections *excluding* the face landmarks (0-10)
@@ -31,21 +34,21 @@ function isWristToFingerConnection(connection, side) {
 }
 
 // Initialize body tracking
-export function initBodyTracking(scene, THREE, config) {
+export function initBodyTracking(scene, config) {
     const bodyMesh = {
         joints: {},
         bones: {}
     };
-    
+
     // Create a material for body joints
-    const jointMaterial = new THREE.MeshStandardMaterial({ 
+    const jointMaterial = new THREE.MeshStandardMaterial({
         color: config.threeJS.bodyColor,
         emissive: config.threeJS.bodyColor,
         emissiveIntensity: 0.3
     });
-    
+
     const jointGeometry = new THREE.SphereGeometry(config.threeJS.jointRadius, 16, 16);
-    
+
     // Add body joints to the scene, skipping face landmarks (0-10)
     for (let i = 11; i < 33; i++) { // Start from index 11 (shoulders)
         const joint = new THREE.Mesh(jointGeometry, jointMaterial);
@@ -53,14 +56,14 @@ export function initBodyTracking(scene, THREE, config) {
         scene.add(joint);
         bodyMesh.joints[i] = joint;
     }
-    
+
     // Create bones (cylinders between joints)
-    const boneMaterial = new THREE.MeshStandardMaterial({ 
+    const boneMaterial = new THREE.MeshStandardMaterial({
         color: config.threeJS.bodyColor,
         emissive: config.threeJS.bodyColor,
         emissiveIntensity: 0.2
     });
-    
+
     // Create bones for pose connections (already filtered to exclude face)
     for (const connection of POSE_CONNECTIONS) {
         const geometry = new THREE.CylinderGeometry(config.threeJS.boneRadius, config.threeJS.boneRadius, 1, 8);
@@ -72,7 +75,7 @@ export function initBodyTracking(scene, THREE, config) {
         bodyMesh.bones[connection.join('-')] = bone;
         bodyMesh.bones[`${connection[1]}-${connection[0]}`] = bone;
     }
-    
+
     return bodyMesh;
 }
 
